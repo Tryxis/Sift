@@ -1,0 +1,25 @@
+# .NET
+bin/
+obj/
+*.user
+.vs/
+.idea/
+
+# Node
+node_modules/
+dist/
+backend/Sift.Api/wwwroot/
+*.local
+
+# Secrets backstop (real secrets live in dotnet user-secrets, outside the repo)
+.env
+.env.*
+!.env.example
+!.env.mock
+!.env.preview
+appsettings.*.local.json
+secrets.json
+
+# macOS
+.DS_Store
+.neon

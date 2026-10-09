@@ -1,0 +1,14 @@
+{
+  "name": "sift",
+  "private": true,
+  "scripts": {
+    "dev": "concurrently --kill-others --names api,web --prefix-colors cyan,green \"dotnet run --project backend/Sift.Api --launch-profile http\" \"npm --prefix frontend run dev\""
+  },
+  "dependencies": {
+    "@neon/config": "^1.8.6",
+    "@neon/env": "^1.5.3"
+  },
+  "devDependencies": {
+    "concurrently": "^10.0.6"
+  }
+}

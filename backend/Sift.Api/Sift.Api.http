@@ -1,0 +1,16 @@
+@api = http://localhost:5080
+
+### Sync any public profile (SteamID64, custom name, or profile URL)
+POST {{api}}/api/profiles/sync
+Content-Type: application/json
+
+{ "identifier": "gabelogannewell" }
+
+### Read a stored library
+GET {{api}}/api/profiles/76561197960287930/library
+
+### Update a backlog entry
+PATCH {{api}}/api/profiles/76561197960287930/games/620/backlog
+Content-Type: application/json
+
+{ "status": "Playing", "notes": "Co-op with Sam" }
