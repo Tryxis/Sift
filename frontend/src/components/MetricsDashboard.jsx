@@ -1,5 +1,4 @@
 import { useMemo } from "react";
-import { Clock, ThumbsUp } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { STATUSES, STATUS_META } from "@/lib/status";
 
@@ -114,11 +113,6 @@ export function MetricsDashboard({ games, filteredGames }) {
     const dnfHours = dnf.map((game) => Number(game.finishedHours));
     const dnfExpected = dnf.map((game) => game.expected);
 
-    const playNext = games
-      .filter((game) => game.status === "Backlog" && game.playtimeForeverMinutes === 0 && game.reviewScore != null)
-      .sort((a, b) => b.reviewScore - a.reviewScore || (a.timeToBeatMainMinutes ?? Infinity) - (b.timeToBeatMainMinutes ?? Infinity))
-      .slice(0, 10);
-
     return {
       library: summarize(games),
       filtered: summarize(filteredGames),
@@ -133,7 +127,6 @@ export function MetricsDashboard({ games, filteredGames }) {
         expectedHours: sum(dnfExpected),
         breakdown: dnf,
       },
-      playNext,
     };
   }, [games, filteredGames]);
 
@@ -241,34 +234,6 @@ export function MetricsDashboard({ games, filteredGames }) {
       </div>
 
       <div className="grid gap-6 lg:grid-cols-2">
-        <div>
-          <SectionTitle title="Play next" detail="Highly rated games in your backlog that you haven’t launched yet." />
-          <div className="rounded-card border border-border bg-card px-4">
-            {metrics.playNext.length ? (
-              <ol className="divide-y divide-border">
-                {metrics.playNext.map((game, index) => (
-                  <li key={game.appId} className="flex items-center gap-3 py-2.5">
-                    <span className="w-5 text-xs tabular-nums text-muted-foreground">{index + 1}</span>
-                    <span className="min-w-0 flex-1 truncate text-sm" title={game.name}>{game.name}</span>
-                    <span className="flex shrink-0 items-center gap-3 text-xs tabular-nums text-muted-foreground">
-                      <span className="flex items-center gap-1" title="Steam review score">
-                        <ThumbsUp className="h-3 w-3" aria-hidden="true" />
-                        {game.reviewScore.toFixed(1)}%
-                      </span>
-                      <span className="flex items-center gap-1" title="HLTB main-story estimate">
-                        <Clock className="h-3 w-3" aria-hidden="true" />
-                        {game.timeToBeatMainMinutes == null ? "—" : formatHours(expectedHours(game))}
-                      </span>
-                    </span>
-                  </li>
-                ))}
-              </ol>
-            ) : (
-              <p className="py-4 text-sm text-muted-foreground">No unplayed, rated backlog games match this selection.</p>
-            )}
-          </div>
-        </div>
-
         <div>
           <SectionTitle title="DNF breakdown" detail="Sorted by the share of the HLTB main-story estimate completed before stopping." />
           <div className="max-h-80 overflow-auto rounded-card border border-border bg-card px-4">

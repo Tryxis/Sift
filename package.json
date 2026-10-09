@@ -2,7 +2,8 @@
   "name": "sift",
   "private": true,
   "scripts": {
-    "dev": "concurrently --kill-others --names api,web --prefix-colors cyan,green \"dotnet run --project backend/Sift.Api --launch-profile http\" \"npm --prefix frontend run dev\""
+    "dev": "concurrently --kill-others --names api,web --prefix-colors cyan,green \"dotnet run --project backend/Sift.Api --launch-profile http\" \"npm --prefix frontend run dev\"",
+    "dev:lan": "concurrently --kill-others --names api,web --prefix-colors cyan,green \"dotnet run --project backend/Sift.Api --launch-profile lan\" \"npm --prefix frontend run dev -- --host 0.0.0.0\""
   },
   "dependencies": {
     "@neon/config": "^1.8.6",

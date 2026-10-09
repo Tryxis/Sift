@@ -23,8 +23,8 @@ function FilterChip({ definition, bounds, onChange, onRemove }) {
   );
 
   return (
-    <div className="flex h-9 items-center gap-2 rounded-full border border-border-strong pl-3.5 pr-1.5 text-[13px] sm:h-8">
-      <span className="text-muted-foreground">{definition.label}</span>
+    <div className="flex h-9 max-w-full items-center gap-1.5 rounded-full border border-border-strong pl-3 pr-1.5 text-xs sm:h-8 sm:gap-2 sm:pl-3.5 sm:text-[13px]">
+      <span className="whitespace-nowrap text-muted-foreground">{definition.label}</span>
       {single ? (
         <>
           <span className="text-muted-foreground">{LEAD_IN[definition.fields[0]]}</span>
@@ -49,9 +49,16 @@ function FilterChip({ definition, bounds, onChange, onRemove }) {
   );
 }
 
-export function FilterBar({ activeFilters, onFilterChange, playedBefore, onPlayedBeforeChange }) {
+export function FilterBar({
+  activeFilters,
+  onFilterChange,
+  playedBefore,
+  onPlayedBeforeChange,
+  reviewScoreOrder,
+  onReviewScoreOrderChange,
+}) {
   return (
-    <div className="flex flex-wrap items-center gap-2">
+    <div className="flex w-fit max-w-full flex-wrap items-center gap-2">
       {Object.entries(activeFilters).map(([id, bounds]) => (
         <FilterChip
           key={id}
@@ -81,6 +88,37 @@ export function FilterBar({ activeFilters, onFilterChange, playedBefore, onPlaye
             >
               {label}
               {playedBefore === value && <Check className="h-3.5 w-3.5 text-muted-foreground" />}
+            </DropdownMenuItem>
+          ))}
+        </DropdownMenuContent>
+      </DropdownMenu>
+      <DropdownMenu>
+        <DropdownMenuTrigger asChild>
+          <Button
+            variant={reviewScoreOrder ? "outline" : "dashed"}
+            size="sm"
+            aria-label="Sort by review score"
+            className="max-w-full"
+          >
+            <span className="truncate">
+              Review score: {reviewScoreOrder === "ascending" ? "Low to high" : reviewScoreOrder === "descending" ? "High to low" : "Off"}
+            </span>
+            <ChevronDown className="h-3.5 w-3.5 shrink-0" />
+          </Button>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align="end" className="w-48">
+          {[
+            [null, "Off"],
+            ["ascending", "Low to high"],
+            ["descending", "High to low"],
+          ].map(([value, label]) => (
+            <DropdownMenuItem
+              key={label}
+              onSelect={() => onReviewScoreOrderChange(value)}
+              className="justify-between"
+            >
+              {label}
+              {reviewScoreOrder === value && <Check className="h-3.5 w-3.5 text-muted-foreground" />}
             </DropdownMenuItem>
           ))}
         </DropdownMenuContent>

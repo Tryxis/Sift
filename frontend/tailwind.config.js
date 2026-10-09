@@ -33,6 +33,7 @@ export default {
           backlog: "hsl(var(--status-backlog))",
           playing: "hsl(var(--status-playing))",
           completed: "hsl(var(--status-completed))",
+          "completed-before": "hsl(var(--status-completed-before))",
           abandoned: "hsl(var(--status-abandoned))",
           problem: "hsl(var(--status-problem))",
         },

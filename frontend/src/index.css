@@ -31,6 +31,7 @@
     --status-backlog: 218 12% 55%;
     --status-playing: 219 100% 65%;
     --status-completed: 158 67% 59%;
+    --status-completed-before: 194 100% 61%;
     --status-abandoned: 349 100% 68%;
     --status-problem: 28 86% 67%;
 
@@ -75,6 +76,20 @@
 }
 
 @layer components {
+  .status-selector-container {
+    container: status-selector / inline-size;
+  }
+
+  .status-picker-label {
+    display: none;
+  }
+
+  @container status-selector (min-width: 250px) {
+    .status-picker-label {
+      display: inline;
+    }
+  }
+
   /* The system's one signature flourish: a soft nebula behind the header. */
   .nebula {
     position: absolute;

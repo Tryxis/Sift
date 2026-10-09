@@ -9,13 +9,6 @@ export const FILTER_DEFINITIONS = [
     read: (g) => g.playtimeForeverMinutes / 60,
   },
   {
-    id: "score",
-    label: "Review score",
-    fields: ["min"],
-    unit: "%",
-    read: (g) => g.reviewScore,
-  },
-  {
     id: "timeToBeat",
     label: "Time to beat",
     fields: ["max"],

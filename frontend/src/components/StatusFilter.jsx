@@ -1,21 +1,20 @@
 import { cn } from "@/lib/utils";
-import { STATUSES, STATUS_META } from "@/lib/status";
+import { COMPLETED_BEFORE_FILTER, STATUSES, STATUS_META } from "@/lib/status";
 
-// Filter tab pills: active and inactive share a background; only the border changes.
-export function StatusFilter({ value, counts, onChange }) {
-  const options = ["All", ...STATUSES];
+export function StatusFilter({ selectedStatuses, counts, onToggle, onClear }) {
+  const options = ["All", ...STATUSES, COMPLETED_BEFORE_FILTER];
   return (
-    <div className="-mx-5 flex gap-2 overflow-x-auto px-5 [scrollbar-width:none] sm:mx-0 sm:flex-wrap sm:overflow-visible sm:px-0 [&::-webkit-scrollbar]:hidden" role="tablist" aria-label="Filter by status">
+    <div className="flex w-fit max-w-full flex-wrap gap-2" role="group" aria-label="Filter by status">
       {options.map((option) => {
-        const active = value === option;
+        const active = option === "All" ? selectedStatuses.length === 0 : selectedStatuses.includes(option);
         return (
           <button
             key={option}
-            role="tab"
-            aria-selected={active}
-            onClick={() => onChange(option)}
+            type="button"
+            aria-pressed={active}
+            onClick={() => option === "All" ? onClear() : onToggle(option)}
             className={cn(
-              "flex h-9 shrink-0 items-center gap-2 rounded-full border px-3.5 text-[13px] transition-colors sm:h-8",
+              "flex h-9 shrink-0 items-center gap-2 rounded-full border px-3 text-[12px] transition-colors sm:h-8 sm:px-3.5 sm:text-[13px]",
               active
                 ? "border-foreground/70 text-foreground"
                 : "border-border-strong text-muted-foreground hover:border-muted-foreground/60 hover:text-foreground"

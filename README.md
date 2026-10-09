@@ -40,6 +40,14 @@ npm run dev
 
 Open [http://localhost:5173](http://localhost:5173). The API starts alongside the frontend. Press Ctrl+C to stop both.
 
+To access the development app from a phone or another device on the same Wi-Fi, run:
+
+```bash
+npm run dev:lan
+```
+
+On your phone, open `http://<YOUR-IP>:5173`. 
+
 For sample data without starting the API or connecting to Neon, run:
 
 ```bash

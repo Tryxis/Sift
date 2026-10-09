@@ -16,7 +16,7 @@ export function GameGrid({ games, onUpdateGame, onClearFilters }) {
   return (
     <ul className="grid grid-cols-2 gap-3 sm:gap-4 md:grid-cols-3 xl:grid-cols-4">
       {games.map((game) => (
-        <li key={game.appId}>
+        <li key={game.appId} className="min-w-0">
           <GameCard game={game} onUpdateGame={onUpdateGame} />
         </li>
       ))}
