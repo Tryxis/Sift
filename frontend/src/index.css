@@ -1,0 +1,90 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/*
+  Palette (hex source values, stored as HSL channels for Tailwind alpha support):
+  Void      #0b0e13  page
+  Hull      #11151c  cards, popovers
+  Abyss     #06080c  inset wells (inputs)
+  Gunmetal  #1c212a  hairline borders
+  Bulkhead  #2c303b  chip / pill borders
+  Starlight #e9ecf2  text
+  Dust      #8b93a3  secondary text
+  Status: Steel #7d889b, Plasma Blue #4d8dff, Aurora Mint #4fdcaa, Plasma Red #ff5a78, Problem Peach #f4a261
+*/
+@layer base {
+  :root {
+    --background: 216 27% 6%;
+    --card: 217 24% 9%;
+    --popover: 217 24% 9%;
+    --abyss: 220 33% 4%;
+    --foreground: 220 27% 93%;
+    --muted: 217 20% 13%;
+    --muted-foreground: 219 11% 59%;
+    --border: 218 20% 14%;
+    --border-strong: 223 15% 20%;
+    --ring: 219 100% 65%;
+    --primary: 220 27% 93%;
+    --primary-foreground: 216 27% 6%;
+
+    --status-backlog: 218 12% 55%;
+    --status-playing: 219 100% 65%;
+    --status-completed: 158 67% 59%;
+    --status-abandoned: 349 100% 68%;
+    --status-problem: 28 86% 67%;
+
+    color-scheme: dark;
+  }
+
+  * {
+    @apply border-border;
+  }
+
+  html {
+    scroll-padding-top: env(safe-area-inset-top, 0px);
+  }
+
+  body {
+    @apply bg-background font-sans text-foreground antialiased;
+    padding-top: env(safe-area-inset-top, 0px);
+    padding-bottom: env(safe-area-inset-bottom, 0px);
+  }
+
+  /* Native number spinners are inconsistent across browsers; hide them everywhere. */
+  input[type="number"]::-webkit-outer-spin-button,
+  input[type="number"]::-webkit-inner-spin-button {
+    -webkit-appearance: none;
+    margin: 0;
+  }
+  input[type="number"] {
+    -moz-appearance: textfield;
+    appearance: textfield;
+  }
+
+  :focus-visible {
+    @apply outline-none ring-2 ring-ring/60 ring-offset-2 ring-offset-background;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after {
+      animation-duration: 0.01ms !important;
+      transition-duration: 0.01ms !important;
+    }
+  }
+}
+
+@layer components {
+  /* The system's one signature flourish: a soft nebula behind the header. */
+  .nebula {
+    position: absolute;
+    inset: -160px 0 auto 0;
+    height: 520px;
+    pointer-events: none;
+    background:
+      radial-gradient(40% 60% at 22% 40%, hsl(252 90% 60% / 0.22), transparent 70%),
+      radial-gradient(35% 55% at 70% 20%, hsl(219 100% 60% / 0.16), transparent 70%),
+      radial-gradient(30% 40% at 55% 70%, hsl(170 70% 50% / 0.08), transparent 70%);
+    filter: blur(20px);
+  }
+}
