@@ -11,9 +11,23 @@ export const FILTER_DEFINITIONS = [
   {
     id: "timeToBeat",
     label: "Time to beat",
-    fields: ["max"],
+    fields: ["min", "max"],
     unit: "hrs",
     read: (g) => (g.timeToBeatMainMinutes == null ? null : g.timeToBeatMainMinutes / 60),
+  },
+  {
+    id: "reviewScore",
+    label: "Review score",
+    fields: ["min", "max"],
+    unit: "%",
+    read: (g) => g.reviewScore,
+  },
+  {
+    id: "finishedHours",
+    label: "Finished hours",
+    fields: ["min", "max"],
+    unit: "hrs",
+    read: (g) => g.finishedHours,
   },
 ];
 

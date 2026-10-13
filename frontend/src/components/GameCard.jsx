@@ -1,11 +1,12 @@
-import { createPortal } from "react-dom";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import { Clock, RotateCcw, ThumbsUp } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { GameCover } from "./GameCover";
 import { StatusPicker } from "./StatusPicker";
+import { PlayedBeforeToggle } from "./PlayedBeforeToggle";
 import { formatHours } from "@/lib/format";
 import { getStatusMeta } from "@/lib/status";
+import { useGameStatusChange } from "@/hooks/useGameStatusChange";
 
 function ReviewScore({ game }) {
   if (game.reviewScore == null) return null;
@@ -72,40 +73,11 @@ function PlayedBeforeField({ game, onUpdateGame }) {
   return (
     <div className="grid min-w-0 grid-cols-[minmax(0,1fr)_4rem] items-center gap-1.5 text-xs sm:grid-cols-[minmax(0,1fr)_9rem] sm:gap-3">
       <span className="text-muted-foreground">Played before</span>
-      <div
-        className="relative ml-auto grid h-8 w-full grid-cols-2 overflow-hidden rounded-well border border-border-strong bg-abyss p-0"
-        role="group"
-        aria-label={`Played before on another platform for ${game.name}`}
-      >
-        <span
-          aria-hidden="true"
-          className={`pointer-events-none absolute inset-y-0 left-0 w-1/2 bg-status-playing/30 transition-transform duration-200 ease-out ${
-            game.playedBefore ? "" : "translate-x-full"
-          }`}
-        />
-        {[true, false].map((playedBefore) => {
-          const label = playedBefore ? "Y" : "N";
-          const selected = game.playedBefore === playedBefore;
-          return (
-            <button
-              key={label}
-              type="button"
-              aria-label={`${playedBefore ? "Yes" : "No"}, played before`}
-              aria-pressed={selected}
-              className={`relative z-10 grid h-full min-w-0 place-items-center rounded-none font-medium transition-colors ${
-                selected
-                  ? "text-foreground"
-                  : "text-muted-foreground"
-              }`}
-              onClick={() => {
-                if (!selected) onUpdateGame(game.appId, { playedBefore });
-              }}
-            >
-              {label}
-            </button>
-          );
-        })}
-      </div>
+      <PlayedBeforeToggle
+        playedBefore={game.playedBefore}
+        onChange={(playedBefore) => onUpdateGame(game.appId, { playedBefore })}
+        ariaLabel={`Played before on another platform for ${game.name}`}
+      />
     </div>
   );
 }
@@ -153,128 +125,9 @@ function StatusField({ game, onStatusChange }) {
   );
 }
 
-function CompletionPrompt({ game, status, finishedHours, triggerRect, onClose, onConfirm }) {
-  const cancelRef = useRef(null);
-  const dialogRef = useRef(null);
-  const [viewport, setViewport] = useState(() => ({
-    width: window.innerWidth,
-    height: window.innerHeight,
-  }));
-
-  useEffect(() => {
-    const updateViewport = () => setViewport({ width: window.innerWidth, height: window.innerHeight });
-    const handleKeyDown = (event) => {
-      if (event.key === "Escape") onClose();
-      if (event.key === "Tab") {
-        const buttons = dialogRef.current?.querySelectorAll("button");
-        if (!buttons?.length) return;
-        const first = buttons[0];
-        const last = buttons[buttons.length - 1];
-        if (event.shiftKey && document.activeElement === first) {
-          event.preventDefault();
-          last.focus();
-        } else if (!event.shiftKey && document.activeElement === last) {
-          event.preventDefault();
-          first.focus();
-        }
-      }
-    };
-    window.addEventListener("resize", updateViewport);
-    window.addEventListener("keydown", handleKeyDown);
-    cancelRef.current?.focus();
-    return () => {
-      window.removeEventListener("resize", updateViewport);
-      window.removeEventListener("keydown", handleKeyDown);
-    };
-  }, [onClose]);
-
-  const dialogWidth = Math.min(352, viewport.width - 32);
-  const left = Math.max(16, Math.min(
-    (triggerRect?.left ?? viewport.width / 2) + (triggerRect?.width ?? 0) / 2 - dialogWidth / 2,
-    viewport.width - dialogWidth - 16
-  ));
-  const top = Math.max(24, Math.min(
-    (triggerRect?.top ?? viewport.height / 2) - 110,
-    viewport.height - 260
-  ));
-  const replacementNotice = game.finishedHours == null
-    ? null
-    : `This will replace the current Finished Hours value of ${game.finishedHours} hours.`;
-
-  return createPortal(
-    <div
-      className="fixed inset-0 z-[100] bg-background/70 backdrop-blur-[2px]"
-      onClick={onClose}
-    >
-      <section
-        ref={dialogRef}
-        role="alertdialog"
-        aria-modal="true"
-        aria-labelledby={`completion-title-${game.appId}`}
-        aria-describedby={`completion-description-${game.appId}`}
-        className="absolute rounded-card border border-border-strong bg-card p-5 shadow-[0_20px_70px_hsl(220_33%_2%/0.8)]"
-        style={{ left, top, width: dialogWidth }}
-        onClick={(event) => event.stopPropagation()}
-      >
-        <div className="mb-4">
-          <h2 id={`completion-title-${game.appId}`} className="font-display text-lg font-medium">
-            Mark as {status.toLowerCase()}?
-          </h2>
-          <p id={`completion-description-${game.appId}`} className="mt-2 text-sm leading-relaxed text-muted-foreground">
-            Copy {finishedHours} hours of current Steam playtime to Finished Hours for <span className="text-foreground">{game.name}</span>?
-          </p>
-          {replacementNotice && <p className="mt-2 text-xs text-status-problem">{replacementNotice}</p>}
-          <p className="mt-2 text-xs text-muted-foreground">This is a one-time copy. Finished Hours will not track future Steam playtime.</p>
-        </div>
-        <div className="flex flex-wrap justify-end gap-2">
-          <button
-            ref={cancelRef}
-            type="button"
-            className="rounded-well border border-border-strong px-3 py-2 text-sm text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
-            onClick={onClose}
-          >
-            Cancel
-          </button>
-          <button
-            type="button"
-            className="rounded-well border border-border-strong px-3 py-2 text-sm transition-colors hover:bg-muted"
-            onClick={() => onConfirm(false)}
-          >
-            Status only
-          </button>
-          <button
-            type="button"
-            className="rounded-well bg-primary px-3 py-2 text-sm font-medium text-primary-foreground transition-opacity hover:opacity-90"
-            onClick={() => onConfirm(true)}
-          >
-            Copy hours
-          </button>
-        </div>
-      </section>
-    </div>,
-    document.body
-  );
-}
-
 export function GameCard({ game, onUpdateGame }) {
   const [isFlipped, setIsFlipped] = useState(false);
-  const [completionPrompt, setCompletionPrompt] = useState(null);
-  const closeCompletionPrompt = useCallback(() => setCompletionPrompt(null), []);
-  const handleStatusChange = (status, triggerRect) => {
-    if (["Completed", "Abandoned"].includes(status) && game.status !== status) {
-      const finishedHours = Number((game.playtimeForeverMinutes / 60).toFixed(2));
-      setCompletionPrompt({ status, finishedHours, triggerRect });
-      return;
-    }
-    onUpdateGame(game.appId, { status });
-  };
-
-  const confirmCompletion = (copyHours) => {
-    const patch = { status: completionPrompt.status };
-    if (copyHours) patch.finishedHours = completionPrompt.finishedHours;
-    setCompletionPrompt(null);
-    onUpdateGame(game.appId, patch);
-  };
+  const { handleStatusChange, statusChangePrompt } = useGameStatusChange(game, onUpdateGame);
 
   const handleCardClick = (event) => {
     if (event.target.closest("button, input, select, a, [role='menuitem']")) return;
@@ -379,16 +232,7 @@ export function GameCard({ game, onUpdateGame }) {
                 onChange={handleStatusChange}
               />
             </div>
-            {completionPrompt && (
-              <CompletionPrompt
-                game={game}
-                status={completionPrompt.status}
-                finishedHours={completionPrompt.finishedHours}
-                triggerRect={completionPrompt.triggerRect}
-                onClose={closeCompletionPrompt}
-                onConfirm={confirmCompletion}
-              />
-            )}
+            {statusChangePrompt}
           </div>
         </Card>
       </div>

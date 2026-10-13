@@ -1,6 +1,6 @@
 # Sift
 
-Sift is a personal Steam library tracker. Organise games into Backlog, Playing, Completed, Abandoned, or Problem; record whether you played a game before on another platform; and review playtime, Steam review scores, and HowLongToBeat estimates. Filter your library and view summary metrics.
+Sift is a personal Steam library tracker. Organise games into Backlog, Playing, Completed, Abandoned, or Problem; record whether you played a game before on another platform; and review playtime, Steam review scores, and HowLongToBeat estimates. Filter your library, save named filter views, switch between cards and a spreadsheet-style table, and view summary metrics.
 
 ## Run locally
 
@@ -53,6 +53,10 @@ For sample data without starting the API or connecting to Neon, run:
 ```bash
 npm --prefix frontend run dev:mock
 ```
+
+Mock mode keeps demo changes in memory, so saved views reset when the page reloads. Persistent saved views require the API and database.
+
+Saved filter views are stored in Postgres per Steam profile and the most recently selected view is restored when that profile is opened. Status, Played Before, and Finished Hours are stored per game and profile as well.
 
 ## Built with
 

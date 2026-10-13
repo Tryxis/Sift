@@ -20,4 +20,5 @@ public class SteamProfile
 
     public ICollection<OwnedGame> OwnedGames { get; set; } = new List<OwnedGame>();
     public ICollection<BacklogEntry> BacklogEntries { get; set; } = new List<BacklogEntry>();
+    public ICollection<SavedFilterView> SavedFilterViews { get; set; } = new List<SavedFilterView>();
 }

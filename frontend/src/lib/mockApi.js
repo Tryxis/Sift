@@ -67,8 +67,14 @@ function buildLibrary(steamId) {
 }
 
 const store = new Map();
+const savedViews = new Map();
 const delay = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 const MOCK_ID = "76561198000000042";
+
+function viewsFor(steamId) {
+  if (!savedViews.has(steamId)) savedViews.set(steamId, []);
+  return savedViews.get(steamId);
+}
 
 export const mockApi = {
   async syncProfile(identifier) {
@@ -107,5 +113,58 @@ export const mockApi = {
     Object.assign(game, changes);
     if (clearFinishedHours) game.finishedHours = null;
     return structuredClone(game);
+  },
+
+  async getSavedViews(steamId) {
+    await delay(100);
+    return structuredClone(viewsFor(steamId));
+  },
+
+  async createSavedView(steamId, body) {
+    await delay(100);
+    const views = viewsFor(steamId);
+    if (views.some((view) => view.name.toLowerCase() === body.name.trim().toLowerCase())) {
+      throw new Error(`A saved filter view named '${body.name.trim()}' already exists.`);
+    }
+    const view = {
+      id: crypto.randomUUID(),
+      name: body.name.trim(),
+      configuration: structuredClone(body.configuration),
+      isSelected: true,
+      updatedUtc: new Date().toISOString(),
+    };
+    views.forEach((savedView) => { savedView.isSelected = false; });
+    views.push(view);
+    return structuredClone(view);
+  },
+
+  async updateSavedView(steamId, id, body) {
+    await delay(100);
+    const views = viewsFor(steamId);
+    const view = views.find((item) => item.id === id);
+    if (!view) throw new Error("Saved filter view not found.");
+    if (views.some((item) => item.id !== id && item.name.toLowerCase() === body.name.trim().toLowerCase())) {
+      throw new Error(`A saved filter view named '${body.name.trim()}' already exists.`);
+    }
+    view.name = body.name.trim();
+    view.configuration = structuredClone(body.configuration);
+    view.updatedUtc = new Date().toISOString();
+    return structuredClone(view);
+  },
+
+  async selectSavedView(steamId, id) {
+    await delay(100);
+    const views = viewsFor(steamId);
+    if (id && !views.some((view) => view.id === id)) throw new Error("Saved filter view not found.");
+    views.forEach((view) => { view.isSelected = view.id === id; });
+    return structuredClone(views);
+  },
+
+  async deleteSavedView(steamId, id) {
+    await delay(100);
+    const views = viewsFor(steamId);
+    const index = views.findIndex((view) => view.id === id);
+    if (index === -1) throw new Error("Saved filter view not found.");
+    views.splice(index, 1);
   },
 };

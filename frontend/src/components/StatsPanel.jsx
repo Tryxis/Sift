@@ -18,7 +18,7 @@ function StatCard({ title, value, detail, className }) {
   );
 }
 
-export function StatsPanel({ games }) {
+export function StatsPanel({ games, className = "" }) {
   const stats = useMemo(() => {
     const counts = STATUSES.map((s) => ({ status: s, count: games.filter((g) => g.status === s).length }));
     const completed = counts.find((c) => c.status === "Completed").count;
@@ -37,7 +37,7 @@ export function StatsPanel({ games }) {
   const chartData = stats.counts.filter((c) => c.count > 0);
 
   return (
-    <section className="relative z-10 grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-[1.5fr_1fr_1fr_1fr]" aria-label="Library stats">
+    <section className={`relative z-10 grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-[1.5fr_1fr_1fr_1fr] ${className}`} aria-label="Library stats">
       <Card className="col-span-2 md:col-span-1">
         <CardHeader className="pb-2">
           <CardTitle>Status breakdown</CardTitle>

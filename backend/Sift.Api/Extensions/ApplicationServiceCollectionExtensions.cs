@@ -13,6 +13,7 @@ public static class ApplicationServiceCollectionExtensions
         services.AddScoped<ILibraryQueryService, LibraryQueryService>();
         services.AddScoped<ILibrarySyncService, LibrarySyncService>();
         services.AddScoped<IBacklogService, BacklogService>();
+        services.AddScoped<ISavedFilterViewService, SavedFilterViewService>();
 
         return services;
     }

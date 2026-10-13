@@ -126,6 +126,42 @@ namespace Sift.Api.Migrations
                     b.ToTable("owned_games", (string)null);
                 });
 
+            modelBuilder.Entity("Sift.Api.Domain.Entities.SavedFilterView", b =>
+                {
+                    b.Property<string>("SteamId")
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)");
+
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Configuration")
+                        .IsRequired()
+                        .HasColumnType("jsonb");
+
+                    b.Property<bool>("IsSelected")
+                        .HasColumnType("boolean");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(80)
+                        .HasColumnType("character varying(80)");
+
+                    b.Property<DateTime>("UpdatedUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.HasKey("SteamId", "Id");
+
+                    b.HasIndex("SteamId")
+                        .IsUnique()
+                        .HasFilter("\"IsSelected\" = true");
+
+                    b.HasIndex("SteamId", "Name")
+                        .IsUnique();
+
+                    b.ToTable("saved_filter_views", (string)null);
+                });
+
             modelBuilder.Entity("Sift.Api.Domain.Entities.SteamApp", b =>
                 {
                     b.Property<int>("AppId")
@@ -251,6 +287,17 @@ namespace Sift.Api.Migrations
                     b.Navigation("Profile");
                 });
 
+            modelBuilder.Entity("Sift.Api.Domain.Entities.SavedFilterView", b =>
+                {
+                    b.HasOne("Sift.Api.Domain.Entities.SteamProfile", "Profile")
+                        .WithMany("SavedFilterViews")
+                        .HasForeignKey("SteamId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Profile");
+                });
+
             modelBuilder.Entity("Sift.Api.Domain.Entities.SteamReviewSummary", b =>
                 {
                     b.HasOne("Sift.Api.Domain.Entities.SteamApp", "App")
@@ -267,6 +314,8 @@ namespace Sift.Api.Migrations
                     b.Navigation("BacklogEntries");
 
                     b.Navigation("OwnedGames");
+
+                    b.Navigation("SavedFilterViews");
                 });
 #pragma warning restore 612, 618
         }
