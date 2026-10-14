@@ -12,6 +12,10 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
     public DbSet<SavedFilterView> SavedFilterViews => Set<SavedFilterView>();
     public DbSet<HowLongToBeatEntry> HowLongToBeatEntries => Set<HowLongToBeatEntry>();
     public DbSet<SteamReviewSummary> ReviewSummaries => Set<SteamReviewSummary>();
+    public DbSet<StatusChange> StatusChanges => Set<StatusChange>();
+    public DbSet<PlaytimeSnapshot> PlaytimeSnapshots => Set<PlaytimeSnapshot>();
+    public DbSet<SteamAppDetails> AppDetails => Set<SteamAppDetails>();
+    public DbSet<AchievementProgress> AchievementProgress => Set<AchievementProgress>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {

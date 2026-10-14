@@ -50,10 +50,13 @@ public sealed class MetadataEnrichmentJob(
             logger.LogInformation("Metadata enrichment started");
             var result = await enrichment.RunAsync(stoppingToken);
             logger.LogInformation(
-                "Metadata enrichment finished: {Reviews} review scores, {TimesToBeat} completion-time lookups",
-                result.ReviewScoresUpdated, result.TimesToBeatUpdated);
+                "Metadata enrichment finished: {Reviews} review scores, {TimesToBeat} completion-time lookups, " +
+                "{StoreDetails} store details, {Achievements} achievement summaries",
+                result.ReviewScoresUpdated, result.TimesToBeatUpdated, result.StoreDetailsUpdated, result.AchievementsUpdated);
         }
-        catch (Exception ex) when (ex is not OperationCanceledException)
+        // Timeouts surface as OperationCanceledException too; only shutdown should end the loop,
+        // otherwise the exception escapes ExecuteAsync and .NET 8 stops the whole host.
+        catch (Exception ex) when (ex is not OperationCanceledException || !stoppingToken.IsCancellationRequested)
         {
             logger.LogError(ex, "Metadata enrichment failed; will retry on the next run");
         }

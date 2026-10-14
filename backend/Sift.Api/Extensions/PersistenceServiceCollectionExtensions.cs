@@ -16,6 +16,8 @@ public static class PersistenceServiceCollectionExtensions
                 "or set the ConnectionStrings__Default environment variable.");
         }
 
+        connectionString = PostgresConnectionString.Normalize(connectionString);
+
         services.AddDbContext<AppDbContext>(options =>
             options.UseNpgsql(connectionString, npgsql => npgsql.EnableRetryOnFailure(maxRetryCount: 3)));
 

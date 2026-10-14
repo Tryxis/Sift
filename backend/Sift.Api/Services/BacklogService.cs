@@ -6,11 +6,12 @@ using Sift.Api.Domain.Entities;
 using Sift.Api.Exceptions;
 using Sift.Api.Mapping;
 using Sift.Api.Services.Interfaces;
+using Sift.Api.Services.Results;
 
 namespace Sift.Api.Services;
 
 /// <summary>
-/// The only writer of backlog_entries. When Steam sign-in lands, the ownership
+/// The only writer of backlog_entries and status_changes. When Steam sign-in lands, the ownership
 /// check sits in front of this service (an authorization policy on the controller),
 /// so nothing here needs to change.
 /// </summary>
@@ -30,24 +31,76 @@ public sealed class BacklogService(AppDbContext db, TimeProvider timeProvider) :
             .FirstOrDefaultAsync(g => g.SteamId == steamId && g.AppId == appId, cancellationToken)
             ?? throw new GameNotInLibraryException(steamId, appId);
 
+        BacklogEntry entry;
+        try
+        {
+            entry = await SaveEntryAsync(steamId, appId, request, cancellationToken);
+        }
+        catch (DbUpdateException ex) when (ex.IsUniqueViolation())
+        {
+            // A concurrent PATCH created the entry first. Apply this request on top of theirs.
+            db.ChangeTracker.Clear();
+            try
+            {
+                entry = await SaveEntryAsync(steamId, appId, request, cancellationToken);
+            }
+            catch (DbUpdateException retryEx) when (retryEx.IsUniqueViolation())
+            {
+                throw new ConcurrentUpdateException(
+                    "This game's backlog entry was changed by another request at the same time. Try again.", retryEx);
+            }
+        }
+
+        var timeToBeat = await db.HowLongToBeatEntries.AsNoTracking()
+            .FirstOrDefaultAsync(h => h.AppId == appId, cancellationToken);
+        var reviews = await db.ReviewSummaries.AsNoTracking()
+            .FirstOrDefaultAsync(r => r.AppId == appId, cancellationToken);
+        var details = await db.AppDetails.AsNoTracking()
+            .Where(d => d.AppId == appId)
+            .Select(d => new AppDetailsSummary(d.AppId, d.Genres, d.ReleaseYear, d.DeckCompatibility, d.IsMultiplayer))
+            .FirstOrDefaultAsync(cancellationToken);
+        var achievements = await db.AchievementProgress.AsNoTracking()
+            .FirstOrDefaultAsync(a => a.SteamId == steamId && a.AppId == appId, cancellationToken);
+
+        return ownedGame.ToLibraryGameResponse(entry, timeToBeat, reviews, details, achievements);
+    }
+
+    /// <summary>Applies the request and records any status change, all in one SaveChanges.</summary>
+    private async Task<BacklogEntry> SaveEntryAsync(
+        string steamId,
+        int appId,
+        UpdateBacklogEntryRequest request,
+        CancellationToken cancellationToken)
+    {
+        var now = timeProvider.GetUtcNow().UtcDateTime;
+
         var entry = await db.BacklogEntries.FindAsync([steamId, appId], cancellationToken);
+        var isNew = entry is null;
         if (entry is null)
         {
             entry = new BacklogEntry { SteamId = steamId, AppId = appId };
             db.BacklogEntries.Add(entry);
         }
 
+        if (request.Status is { } status && status != entry.Status)
+        {
+            db.StatusChanges.Add(new StatusChange
+            {
+                SteamId = steamId,
+                AppId = appId,
+                // A brand-new entry had no stored status; it was only implicitly Backlog.
+                FromStatus = isNew ? null : entry.Status,
+                ToStatus = status,
+                ChangedUtc = now
+            });
+            entry.StatusChangedUtc = now;
+        }
+
         ApplyChanges(entry, request);
-        entry.UpdatedUtc = timeProvider.GetUtcNow().UtcDateTime;
+        entry.UpdatedUtc = now;
 
         await db.SaveChangesAsync(cancellationToken);
-
-        var timeToBeat = await db.HowLongToBeatEntries.AsNoTracking()
-            .FirstOrDefaultAsync(h => h.AppId == appId, cancellationToken);
-        var reviews = await db.ReviewSummaries.AsNoTracking()
-            .FirstOrDefaultAsync(r => r.AppId == appId, cancellationToken);
-
-        return ownedGame.ToLibraryGameResponse(entry, timeToBeat, reviews);
+        return entry;
     }
 
     private static void ApplyChanges(BacklogEntry entry, UpdateBacklogEntryRequest request)
@@ -79,6 +132,11 @@ public sealed class BacklogService(AppDbContext db, TimeProvider timeProvider) :
         if (request.PlayedBefore is { } playedBefore)
         {
             entry.PlayedBefore = playedBefore;
+        }
+
+        if (request.NotInterested is { } notInterested)
+        {
+            entry.NotInterested = notInterested;
         }
     }
 }

@@ -1,0 +1,22 @@
+services:
+  - type: web
+    name: sift
+    runtime: docker
+    plan: free
+    # Pick the region closest to your Neon database.
+    region: frankfurt
+    dockerfilePath: ./Dockerfile
+    healthCheckPath: /api/health
+    autoDeploy: true
+    envVars:
+      # Values are entered in the Render dashboard, never committed.
+      - key: ConnectionStrings__Default
+        sync: false
+      - key: Steam__ApiKey
+        sync: false
+      # Shared password for the site until proper sign-in exists. Leave unset to disable the gate.
+      - key: Access__Password
+        sync: false
+      # Free instances have no deploy step, so the API applies migrations itself on startup.
+      - key: Database__MigrateOnStartup
+        value: "true"

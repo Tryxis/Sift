@@ -24,6 +24,14 @@ public static class EnrichmentServiceCollectionExtensions
             .Bind(configuration.GetSection(ReviewScoreOptions.SectionName))
             .ValidateDataAnnotations()
             .ValidateOnStart();
+        services.AddOptions<StoreDetailsOptions>()
+            .Bind(configuration.GetSection(StoreDetailsOptions.SectionName))
+            .ValidateDataAnnotations()
+            .ValidateOnStart();
+        services.AddOptions<AchievementOptions>()
+            .Bind(configuration.GetSection(AchievementOptions.SectionName))
+            .ValidateDataAnnotations()
+            .ValidateOnStart();
 
         services.AddHttpClient(HowLongToBeatClient.HttpClientName, (provider, client) =>
         {
@@ -46,6 +54,8 @@ public static class EnrichmentServiceCollectionExtensions
 
         services.AddScoped<IReviewScoreService, ReviewScoreService>();
         services.AddScoped<IHowLongToBeatService, HowLongToBeatService>();
+        services.AddScoped<IStoreDetailsEnrichmentService, StoreDetailsEnrichmentService>();
+        services.AddScoped<IAchievementEnrichmentService, AchievementEnrichmentService>();
         services.AddScoped<IGameMetadataEnrichmentService, GameMetadataEnrichmentService>();
 
         services.AddSingleton<IEnrichmentTrigger, EnrichmentTrigger>();

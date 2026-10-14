@@ -19,7 +19,11 @@ public class BacklogEntry
     public string? Notes { get; set; }
     public bool PlayedBefore { get; set; }
     public decimal? FinishedHours { get; set; }
+    public bool NotInterested { get; set; }
     public DateTime UpdatedUtc { get; set; }
+
+    /// <summary>When Status last changed through the API; null for entries untouched since history began.</summary>
+    public DateTime? StatusChangedUtc { get; set; }
 
     public SteamProfile Profile { get; set; } = null!;
     public SteamApp App { get; set; } = null!;

@@ -54,6 +54,12 @@ public sealed class ReviewScoreService(
                     await UpsertAsync(appId, summary.TotalPositive, summary.TotalNegative, now, cancellationToken);
                     updated++;
                 }
+                else
+                {
+                    // success != 1 (typically delisted): record the check so the app backs off
+                    // like any other instead of staying at the front of the queue forever.
+                    await MarkCheckedAsync(appId, now, cancellationToken);
+                }
                 consecutiveFailures = 0;
             }
             catch (Exception ex) when (ex is HttpRequestException or System.Text.Json.JsonException
@@ -71,6 +77,25 @@ public sealed class ReviewScoreService(
         }
 
         return updated;
+    }
+
+    /// <summary>
+    /// Keeps any counts Steam gave before (a temporary hiccup shouldn't erase them); a new row has
+    /// zero reviews, which the library shows as unknown.
+    /// </summary>
+    private async Task MarkCheckedAsync(int appId, DateTime now, CancellationToken cancellationToken)
+    {
+        var summary = await db.ReviewSummaries.FindAsync([appId], cancellationToken);
+        if (summary is null)
+        {
+            db.ReviewSummaries.Add(new SteamReviewSummary { AppId = appId, Rating = null, LastCheckedUtc = now });
+        }
+        else
+        {
+            summary.LastCheckedUtc = now;
+        }
+
+        await db.SaveChangesAsync(cancellationToken);
     }
 
     private async Task UpsertAsync(int appId, int positive, int negative, DateTime now, CancellationToken cancellationToken)

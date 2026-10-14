@@ -62,7 +62,8 @@ public sealed partial class HowLongToBeatClient(
                 var result = await response.Content.ReadFromJsonAsync<HowLongToBeatSearchResponse>(cancellationToken);
                 return result?.Data ?? [];
             }
-            catch (JsonException ex)
+            catch (Exception ex) when (ex is JsonException or HttpRequestException
+                                       || (ex is TaskCanceledException && !cancellationToken.IsCancellationRequested))
             {
                 throw new HowLongToBeatException("Search response wasn't in the expected shape.", ex);
             }

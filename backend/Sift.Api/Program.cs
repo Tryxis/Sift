@@ -4,6 +4,7 @@ var builder = WebApplication.CreateBuilder(args);
 
 builder.Services
     .AddApiLayer()
+    .AddAccessGate(builder.Configuration)
     .AddPersistence(builder.Configuration)
     .AddSteamIntegration(builder.Configuration)
     .AddMetadataEnrichment(builder.Configuration)
@@ -11,7 +12,7 @@ builder.Services
 
 var app = builder.Build();
 
-await app.ApplyMigrationsInDevelopmentAsync();
+await app.ApplyMigrationsOnStartupAsync();
 app.UseApiPipeline();
 
 app.Run();

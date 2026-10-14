@@ -22,6 +22,34 @@ namespace Sift.Api.Migrations
 
             NpgsqlModelBuilderExtensions.UseIdentityByDefaultColumns(modelBuilder);
 
+            modelBuilder.Entity("Sift.Api.Domain.Entities.AchievementProgress", b =>
+                {
+                    b.Property<string>("SteamId")
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)");
+
+                    b.Property<int>("AppId")
+                        .HasColumnType("integer");
+
+                    b.Property<bool>("Available")
+                        .HasColumnType("boolean");
+
+                    b.Property<DateTime>("CheckedUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<int>("Total")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("Unlocked")
+                        .HasColumnType("integer");
+
+                    b.HasKey("SteamId", "AppId");
+
+                    b.HasIndex("AppId");
+
+                    b.ToTable("achievement_progress", (string)null);
+                });
+
             modelBuilder.Entity("Sift.Api.Domain.Entities.BacklogEntry", b =>
                 {
                     b.Property<string>("SteamId")
@@ -34,6 +62,11 @@ namespace Sift.Api.Migrations
                     b.Property<decimal?>("FinishedHours")
                         .HasPrecision(10, 2)
                         .HasColumnType("numeric(10,2)");
+
+                    b.Property<bool>("NotInterested")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("boolean")
+                        .HasDefaultValue(false);
 
                     b.Property<string>("Notes")
                         .HasMaxLength(2000)
@@ -51,6 +84,9 @@ namespace Sift.Api.Migrations
                         .IsRequired()
                         .HasMaxLength(16)
                         .HasColumnType("character varying(16)");
+
+                    b.Property<DateTime?>("StatusChangedUtc")
+                        .HasColumnType("timestamp with time zone");
 
                     b.Property<DateTime>("UpdatedUtc")
                         .HasColumnType("timestamp with time zone");
@@ -126,6 +162,28 @@ namespace Sift.Api.Migrations
                     b.ToTable("owned_games", (string)null);
                 });
 
+            modelBuilder.Entity("Sift.Api.Domain.Entities.PlaytimeSnapshot", b =>
+                {
+                    b.Property<string>("SteamId")
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)");
+
+                    b.Property<int>("AppId")
+                        .HasColumnType("integer");
+
+                    b.Property<DateOnly>("CapturedOn")
+                        .HasColumnType("date");
+
+                    b.Property<int>("PlaytimeForeverMinutes")
+                        .HasColumnType("integer");
+
+                    b.HasKey("SteamId", "AppId", "CapturedOn");
+
+                    b.HasIndex("AppId");
+
+                    b.ToTable("playtime_snapshots", (string)null);
+                });
+
             modelBuilder.Entity("Sift.Api.Domain.Entities.SavedFilterView", b =>
                 {
                     b.Property<string>("SteamId")
@@ -162,6 +220,43 @@ namespace Sift.Api.Migrations
                     b.ToTable("saved_filter_views", (string)null);
                 });
 
+            modelBuilder.Entity("Sift.Api.Domain.Entities.StatusChange", b =>
+                {
+                    b.Property<long>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bigint");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<long>("Id"));
+
+                    b.Property<int>("AppId")
+                        .HasColumnType("integer");
+
+                    b.Property<DateTime>("ChangedUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("FromStatus")
+                        .HasMaxLength(16)
+                        .HasColumnType("character varying(16)");
+
+                    b.Property<string>("SteamId")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)");
+
+                    b.Property<string>("ToStatus")
+                        .IsRequired()
+                        .HasMaxLength(16)
+                        .HasColumnType("character varying(16)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("AppId");
+
+                    b.HasIndex("SteamId", "ChangedUtc");
+
+                    b.ToTable("status_changes", (string)null);
+                });
+
             modelBuilder.Entity("Sift.Api.Domain.Entities.SteamApp", b =>
                 {
                     b.Property<int>("AppId")
@@ -182,6 +277,69 @@ namespace Sift.Api.Migrations
                     b.HasKey("AppId");
 
                     b.ToTable("steam_apps", (string)null);
+                });
+
+            modelBuilder.Entity("Sift.Api.Domain.Entities.SteamAppDetails", b =>
+                {
+                    b.Property<int>("AppId")
+                        .HasColumnType("integer");
+
+                    b.Property<string[]>("Categories")
+                        .IsRequired()
+                        .HasColumnType("text[]");
+
+                    b.Property<DateTime>("CheckedUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<bool>("ComingSoon")
+                        .HasColumnType("boolean");
+
+                    b.Property<string>("DeckCompatibility")
+                        .IsRequired()
+                        .HasMaxLength(16)
+                        .HasColumnType("character varying(16)");
+
+                    b.Property<string[]>("Developers")
+                        .IsRequired()
+                        .HasColumnType("text[]");
+
+                    b.Property<string[]>("Genres")
+                        .IsRequired()
+                        .HasColumnType("text[]");
+
+                    b.Property<bool>("IsMultiplayer")
+                        .HasColumnType("boolean");
+
+                    b.Property<bool>("IsSingleplayer")
+                        .HasColumnType("boolean");
+
+                    b.Property<int?>("MetacriticScore")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("MetacriticUrl")
+                        .HasMaxLength(512)
+                        .HasColumnType("character varying(512)");
+
+                    b.Property<string[]>("Publishers")
+                        .IsRequired()
+                        .HasColumnType("text[]");
+
+                    b.Property<string>("ReleaseDate")
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)");
+
+                    b.Property<int?>("ReleaseYear")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("ShortDescription")
+                        .HasMaxLength(2000)
+                        .HasColumnType("character varying(2000)");
+
+                    b.HasKey("AppId");
+
+                    b.HasIndex("CheckedUtc");
+
+                    b.ToTable("steam_app_details", (string)null);
                 });
 
             modelBuilder.Entity("Sift.Api.Domain.Entities.SteamProfile", b =>
@@ -238,6 +396,25 @@ namespace Sift.Api.Migrations
                     b.ToTable("steam_review_summaries", (string)null);
                 });
 
+            modelBuilder.Entity("Sift.Api.Domain.Entities.AchievementProgress", b =>
+                {
+                    b.HasOne("Sift.Api.Domain.Entities.SteamApp", "App")
+                        .WithMany()
+                        .HasForeignKey("AppId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("Sift.Api.Domain.Entities.SteamProfile", "Profile")
+                        .WithMany()
+                        .HasForeignKey("SteamId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("App");
+
+                    b.Navigation("Profile");
+                });
+
             modelBuilder.Entity("Sift.Api.Domain.Entities.BacklogEntry", b =>
                 {
                     b.HasOne("Sift.Api.Domain.Entities.SteamApp", "App")
@@ -287,6 +464,25 @@ namespace Sift.Api.Migrations
                     b.Navigation("Profile");
                 });
 
+            modelBuilder.Entity("Sift.Api.Domain.Entities.PlaytimeSnapshot", b =>
+                {
+                    b.HasOne("Sift.Api.Domain.Entities.SteamApp", "App")
+                        .WithMany()
+                        .HasForeignKey("AppId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("Sift.Api.Domain.Entities.SteamProfile", "Profile")
+                        .WithMany()
+                        .HasForeignKey("SteamId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("App");
+
+                    b.Navigation("Profile");
+                });
+
             modelBuilder.Entity("Sift.Api.Domain.Entities.SavedFilterView", b =>
                 {
                     b.HasOne("Sift.Api.Domain.Entities.SteamProfile", "Profile")
@@ -296,6 +492,36 @@ namespace Sift.Api.Migrations
                         .IsRequired();
 
                     b.Navigation("Profile");
+                });
+
+            modelBuilder.Entity("Sift.Api.Domain.Entities.StatusChange", b =>
+                {
+                    b.HasOne("Sift.Api.Domain.Entities.SteamApp", "App")
+                        .WithMany()
+                        .HasForeignKey("AppId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("Sift.Api.Domain.Entities.SteamProfile", "Profile")
+                        .WithMany()
+                        .HasForeignKey("SteamId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("App");
+
+                    b.Navigation("Profile");
+                });
+
+            modelBuilder.Entity("Sift.Api.Domain.Entities.SteamAppDetails", b =>
+                {
+                    b.HasOne("Sift.Api.Domain.Entities.SteamApp", "App")
+                        .WithOne()
+                        .HasForeignKey("Sift.Api.Domain.Entities.SteamAppDetails", "AppId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("App");
                 });
 
             modelBuilder.Entity("Sift.Api.Domain.Entities.SteamReviewSummary", b =>

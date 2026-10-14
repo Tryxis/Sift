@@ -24,4 +24,6 @@ public sealed record UpdateBacklogEntryRequest
     public decimal? FinishedHours { get; init; }
 
     public bool ClearFinishedHours { get; init; }
+
+    public bool? NotInterested { get; init; }
 }

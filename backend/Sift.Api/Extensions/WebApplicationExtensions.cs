@@ -1,5 +1,6 @@
 using Microsoft.EntityFrameworkCore;
 using Sift.Api.Data;
+using Sift.Api.Infrastructure.Access;
 
 namespace Sift.Api.Extensions;
 
@@ -20,6 +21,9 @@ public static class WebApplicationExtensions
         app.UseDefaultFiles();
         app.UseStaticFiles();
 
+        app.UseRateLimiter();
+        app.UseMiddleware<AccessGateMiddleware>();
+
         app.MapControllers();
         app.MapHealthChecks("/api/health");
 
@@ -31,12 +35,13 @@ public static class WebApplicationExtensions
     }
 
     /// <summary>
-    /// Applies pending EF Core migrations on startup in Development only.
-    /// Hosted environments should run `dotnet ef database update` (or a migration bundle) as a deploy step.
+    /// Applies pending EF Core migrations on startup in Development, or in any environment when
+    /// `Database:MigrateOnStartup` is true (e.g. a single-instance host with no deploy step).
     /// </summary>
-    public static async Task ApplyMigrationsInDevelopmentAsync(this WebApplication app)
+    public static async Task ApplyMigrationsOnStartupAsync(this WebApplication app)
     {
-        if (!app.Environment.IsDevelopment())
+        var migrateOnStartup = app.Configuration.GetValue<bool>("Database:MigrateOnStartup");
+        if (!app.Environment.IsDevelopment() && !migrateOnStartup)
         {
             return;
         }

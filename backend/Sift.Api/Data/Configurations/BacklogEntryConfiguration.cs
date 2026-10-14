@@ -16,6 +16,7 @@ public sealed class BacklogEntryConfiguration : IEntityTypeConfiguration<Backlog
         builder.Property(e => e.Notes).HasMaxLength(BacklogEntry.NotesMaxLength);
         builder.Property(e => e.PlayedBefore).HasDefaultValue(false);
         builder.Property(e => e.FinishedHours).HasPrecision(10, 2);
+        builder.Property(e => e.NotInterested).HasDefaultValue(false);
 
         builder.HasOne(e => e.Profile)
             .WithMany(p => p.BacklogEntries)

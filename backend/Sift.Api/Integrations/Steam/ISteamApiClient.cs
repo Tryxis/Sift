@@ -10,4 +10,13 @@ public interface ISteamApiClient
     Task<SteamPlayerSummary?> GetPlayerSummaryAsync(string steamId, CancellationToken cancellationToken);
 
     Task<SteamOwnedGamesResult> GetOwnedGamesAsync(string steamId, CancellationToken cancellationToken);
+
+    /// <summary>Never throws for Steam-side failures; the outcome says what went wrong.</summary>
+    Task<SteamAchievementsResult> GetPlayerAchievementsAsync(string steamId, int appId, CancellationToken cancellationToken);
+
+    /// <summary>Empty when the wishlist is empty or private.</summary>
+    Task<IReadOnlyList<SteamWishlistItem>> GetWishlistAsync(string steamId, CancellationToken cancellationToken);
+
+    /// <summary>Store metadata (name, release, reviews, price, assets) for up to ~50 apps in one call.</summary>
+    Task<IReadOnlyList<SteamStoreItem>> GetStoreItemsAsync(IReadOnlyCollection<int> appIds, CancellationToken cancellationToken);
 }

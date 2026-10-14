@@ -12,7 +12,13 @@ public sealed record SavedFilterConfiguration(
     string SearchQuery,
     int PageSize,
     string? TableSortColumn = null,
-    string? TableSortDirection = null);
+    string? TableSortDirection = null,
+    IReadOnlyList<string>? ExcludedStatuses = null,
+    bool? HasNotes = null,
+    IReadOnlyList<string>? Genres = null,
+    IReadOnlyList<string>? DeckCompatibility = null,
+    bool? Multiplayer = null,
+    bool? ShowNotInterested = null);
 
 public sealed record SaveFilterViewRequest(
     [Required, StringLength(80, MinimumLength = 1)] string Name,

@@ -15,10 +15,24 @@ public sealed class SavedFilterViewService(AppDbContext db, TimeProvider timePro
     private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web);
     private static readonly HashSet<string> AllowedStatuses =
         ["Backlog", "Playing", "Completed", "Abandoned", "Problem", "Completed before"];
-    private static readonly HashSet<string> AllowedFilters = ["hours", "timeToBeat", "reviewScore", "finishedHours"];
+    private static readonly HashSet<string> AllowedFilters =
+    [
+        "hours", "timeToBeat", "reviewScore", "finishedHours",
+        "reviewCount", "daysSincePlayed", "progress", "recentHours", "achievements", "releaseYear"
+    ];
     private static readonly HashSet<int> AllowedPageSizes = [10, 20, 50, 100];
     private static readonly HashSet<string> AllowedTableSortColumns =
-        ["name", "status", "hours", "reviewScore", "timeToBeat", "finishedHours", "playedBefore"];
+    [
+        "name", "status", "hours", "lastPlayed", "reviewScore", "timeToBeat", "finishedHours", "playedBefore",
+        "value", "priority", "progress", "recentHours", "reviewCount", "achievements", "releaseYear", "statusChanged"
+    ];
+    private static readonly HashSet<string> AllowedDeckCompatibility = ["Verified", "Playable", "Unsupported", "Unknown"];
+    private const int MaxGenres = 30;
+    private const int MaxGenreLength = 60;
+
+    // Unique indexes from SavedFilterViewConfiguration (EF's default names).
+    private const string NameIndex = "IX_saved_filter_views_SteamId_Name";
+    private const string SelectedIndex = "IX_saved_filter_views_SteamId";
 
     public async Task<IReadOnlyList<SavedFilterViewResponse>> GetAsync(
         string steamId,
@@ -39,32 +53,37 @@ public sealed class SavedFilterViewService(AppDbContext db, TimeProvider timePro
     {
         await EnsureProfileExistsAsync(steamId, cancellationToken);
         Validate(request);
-        await EnsureNameAvailableAsync(steamId, request.Name, null, cancellationToken);
 
-        var previouslySelected = await db.SavedFilterViews
-            .Where(view => view.SteamId == steamId && view.IsSelected)
-            .ToListAsync(cancellationToken);
-        foreach (var previouslySelectedView in previouslySelected)
+        return await RunInTransactionAsync(request.Name, async () =>
         {
-            previouslySelectedView.IsSelected = false;
-        }
-        if (previouslySelected.Count > 0)
-        {
+            await EnsureNameAvailableAsync(steamId, request.Name, null, cancellationToken);
+
+            var previouslySelected = await db.SavedFilterViews
+                .Where(view => view.SteamId == steamId && view.IsSelected)
+                .ToListAsync(cancellationToken);
+            foreach (var previouslySelectedView in previouslySelected)
+            {
+                previouslySelectedView.IsSelected = false;
+            }
+            if (previouslySelected.Count > 0)
+            {
+                // Flushed first: the one-selected-view index is checked per statement.
+                await db.SaveChangesAsync(cancellationToken);
+            }
+
+            var view = new SavedFilterView
+            {
+                Id = Guid.NewGuid(),
+                SteamId = steamId,
+                Name = request.Name.Trim(),
+                Configuration = JsonSerializer.Serialize(request.Configuration, JsonOptions),
+                IsSelected = true,
+                UpdatedUtc = timeProvider.GetUtcNow().UtcDateTime,
+            };
+            db.SavedFilterViews.Add(view);
             await db.SaveChangesAsync(cancellationToken);
-        }
-
-        var view = new SavedFilterView
-        {
-            Id = Guid.NewGuid(),
-            SteamId = steamId,
-            Name = request.Name.Trim(),
-            Configuration = JsonSerializer.Serialize(request.Configuration, JsonOptions),
-            IsSelected = true,
-            UpdatedUtc = timeProvider.GetUtcNow().UtcDateTime,
-        };
-        db.SavedFilterViews.Add(view);
-        await db.SaveChangesAsync(cancellationToken);
-        return ToResponse(view);
+            return ToResponse(view);
+        }, cancellationToken);
     }
 
     public async Task<SavedFilterViewResponse> UpdateAsync(
@@ -83,7 +102,14 @@ public sealed class SavedFilterViewService(AppDbContext db, TimeProvider timePro
         view.Name = request.Name.Trim();
         view.Configuration = JsonSerializer.Serialize(request.Configuration, JsonOptions);
         view.UpdatedUtc = timeProvider.GetUtcNow().UtcDateTime;
-        await db.SaveChangesAsync(cancellationToken);
+        try
+        {
+            await db.SaveChangesAsync(cancellationToken);
+        }
+        catch (DbUpdateException ex) when (ex.IsUniqueViolation(NameIndex))
+        {
+            throw new SavedFilterViewNameConflictException(request.Name.Trim());
+        }
         return ToResponse(view);
     }
 
@@ -93,27 +119,32 @@ public sealed class SavedFilterViewService(AppDbContext db, TimeProvider timePro
         CancellationToken cancellationToken)
     {
         await EnsureProfileExistsAsync(steamId, cancellationToken);
-        var views = await db.SavedFilterViews
-            .Where(view => view.SteamId == steamId)
-            .ToListAsync(cancellationToken);
-        if (id.HasValue && views.All(view => view.Id != id.Value))
-        {
-            throw new SavedFilterViewNotFoundException(id.Value);
-        }
 
-        foreach (var view in views)
+        return await RunInTransactionAsync<IReadOnlyList<SavedFilterViewResponse>>(null, async () =>
         {
-            view.IsSelected = false;
-        }
-        await db.SaveChangesAsync(cancellationToken);
-        if (id.HasValue)
-        {
-            var selected = views.Single(view => view.Id == id.Value);
-            selected.IsSelected = true;
-            selected.UpdatedUtc = timeProvider.GetUtcNow().UtcDateTime;
+            var views = await db.SavedFilterViews
+                .Where(view => view.SteamId == steamId)
+                .ToListAsync(cancellationToken);
+            if (id.HasValue && views.All(view => view.Id != id.Value))
+            {
+                throw new SavedFilterViewNotFoundException(id.Value);
+            }
+
+            foreach (var view in views)
+            {
+                view.IsSelected = false;
+            }
+            // Flushed first: the one-selected-view index is checked per statement.
             await db.SaveChangesAsync(cancellationToken);
-        }
-        return views.OrderBy(view => view.Name).Select(ToResponse).ToArray();
+            if (id.HasValue)
+            {
+                var selected = views.Single(view => view.Id == id.Value);
+                selected.IsSelected = true;
+                selected.UpdatedUtc = timeProvider.GetUtcNow().UtcDateTime;
+                await db.SaveChangesAsync(cancellationToken);
+            }
+            return views.OrderBy(view => view.Name).Select(ToResponse).ToArray();
+        }, cancellationToken);
     }
 
     public async Task DeleteAsync(string steamId, Guid id, CancellationToken cancellationToken)
@@ -124,6 +155,47 @@ public sealed class SavedFilterViewService(AppDbContext db, TimeProvider timePro
             ?? throw new SavedFilterViewNotFoundException(id);
         db.SavedFilterViews.Remove(view);
         await db.SaveChangesAsync(cancellationToken);
+    }
+
+    /// <summary>
+    /// Runs a multi-save operation atomically. It goes through the execution strategy because
+    /// EnableRetryOnFailure doesn't allow user transactions otherwise, and the change tracker is
+    /// cleared first so a retried attempt starts clean. Losing the one-selected-view race to a
+    /// concurrent request retries once; a duplicate name becomes the usual 409.
+    /// </summary>
+    private async Task<T> RunInTransactionAsync<T>(
+        string? name,
+        Func<Task<T>> work,
+        CancellationToken cancellationToken)
+    {
+        for (var attempt = 1; ; attempt++)
+        {
+            try
+            {
+                return await db.Database.CreateExecutionStrategy().ExecuteAsync(async () =>
+                {
+                    db.ChangeTracker.Clear();
+                    await using var transaction = await db.Database.BeginTransactionAsync(cancellationToken);
+                    var result = await work();
+                    await transaction.CommitAsync(cancellationToken);
+                    return result;
+                });
+            }
+            catch (DbUpdateException ex) when (name is not null && ex.IsUniqueViolation(NameIndex))
+            {
+                db.ChangeTracker.Clear();
+                throw new SavedFilterViewNameConflictException(name.Trim());
+            }
+            catch (DbUpdateException ex) when (ex.IsUniqueViolation(SelectedIndex))
+            {
+                db.ChangeTracker.Clear();
+                if (attempt >= 2)
+                {
+                    throw new ConcurrentUpdateException(
+                        "Saved views were changed by another request at the same time. Try again.", ex);
+                }
+            }
+        }
     }
 
     private async Task EnsureProfileExistsAsync(string steamId, CancellationToken cancellationToken)
@@ -174,6 +246,12 @@ public sealed class SavedFilterViewService(AppDbContext db, TimeProvider timePro
             throw new InvalidSavedFilterViewException("The configuration contains an unsupported status.");
         }
 
+        if (configuration.ExcludedStatuses is not null &&
+            configuration.ExcludedStatuses.Any(status => status is null || !AllowedStatuses.Contains(status)))
+        {
+            throw new InvalidSavedFilterViewException("The configuration excludes an unsupported status.");
+        }
+
         if (configuration.ActiveFilters.Keys.Any(key => !AllowedFilters.Contains(key)))
         {
             throw new InvalidSavedFilterViewException("The configuration contains an unsupported filter.");
@@ -191,6 +269,21 @@ public sealed class SavedFilterViewService(AppDbContext db, TimeProvider timePro
         if (configuration.TableSortDirection is not (null or "ascending" or "descending"))
         {
             throw new InvalidSavedFilterViewException("Table sort direction must be ascending, descending, or unset.");
+        }
+
+        if (configuration.Genres is not null &&
+            (configuration.Genres.Count > MaxGenres ||
+             configuration.Genres.Any(genre => string.IsNullOrWhiteSpace(genre) || genre.Length > MaxGenreLength)))
+        {
+            throw new InvalidSavedFilterViewException(
+                $"Genres must be at most {MaxGenres} non-empty names of up to {MaxGenreLength} characters each.");
+        }
+
+        if (configuration.DeckCompatibility is not null &&
+            configuration.DeckCompatibility.Any(value => value is null || !AllowedDeckCompatibility.Contains(value)))
+        {
+            throw new InvalidSavedFilterViewException(
+                "Steam Deck compatibility must be Verified, Playable, Unsupported, or Unknown.");
         }
 
         if (!AllowedPageSizes.Contains(configuration.PageSize))

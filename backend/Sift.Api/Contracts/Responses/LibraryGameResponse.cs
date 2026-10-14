@@ -23,4 +23,12 @@ public sealed record LibraryGameResponse(
     double? ReviewScore,
     int? ReviewCount,
     decimal? FinishedHours,
-    bool PlayedBefore);
+    bool PlayedBefore,
+    DateTime? StatusChangedUtc,
+    bool NotInterested,
+    IReadOnlyList<string> Genres,
+    int? ReleaseYear,
+    SteamDeckCompatibility? DeckCompatibility,
+    bool? IsMultiplayer,
+    int? AchievementsUnlocked,
+    int? AchievementsTotal);
