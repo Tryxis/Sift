@@ -1,0 +1,16 @@
+**/node_modules
+**/bin
+**/obj
+**/dist
+**/dist-preview
+backend/Sift.Api/wwwroot
+.git
+.vs
+.idea
+.neon
+**/*.user
+**/.env
+**/.env.*
+!frontend/.env.example
+!frontend/.env.mock
+!frontend/.env.preview
