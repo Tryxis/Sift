@@ -1,8 +1,16 @@
+// Fired when the server's password gate rejects a request, so the app can show the sign-in screen.
+export const LOCKED_EVENT = "sift:locked";
+
 async function request(path, options = {}) {
   const response = await fetch(path, {
     headers: { "Content-Type": "application/json" },
+    credentials: "same-origin",
     ...options,
   });
+
+  if (response.status === 401 && !path.startsWith("/api/access")) {
+    window.dispatchEvent(new Event(LOCKED_EVENT));
+  }
 
   if (!response.ok) {
     let message = `Request failed (${response.status}).`;
@@ -18,55 +26,51 @@ async function request(path, options = {}) {
     throw error;
   }
 
-  return response.json();
+  return response.status === 204 ? null : response.json();
 }
 
+const profilePath = (steamId) => `/api/profiles/${encodeURIComponent(steamId)}`;
+
 export const httpApi = {
+  getAccessStatus: () => request("/api/access"),
+
+  signIn: (password) => request("/api/access/sign-in", { method: "POST", body: JSON.stringify({ password }) }),
+
+  signOut: () => request("/api/access/sign-out", { method: "POST" }),
+
   syncProfile: (identifier) =>
     request("/api/profiles/sync", { method: "POST", body: JSON.stringify({ identifier }) }),
 
-  getLibrary: (steamId) => request(`/api/profiles/${encodeURIComponent(steamId)}/library`),
+  getLibrary: (steamId) => request(`${profilePath(steamId)}/library`),
 
   updateBacklog: (steamId, appId, patch) =>
-    request(`/api/profiles/${encodeURIComponent(steamId)}/games/${appId}/backlog`, {
+    request(`${profilePath(steamId)}/games/${appId}/backlog`, {
       method: "PATCH",
       body: JSON.stringify(patch),
     }),
 
-  getSavedViews: (steamId) =>
-    request(`/api/profiles/${encodeURIComponent(steamId)}/saved-views`),
+  getSavedViews: (steamId) => request(`${profilePath(steamId)}/saved-views`),
 
   createSavedView: (steamId, body) =>
-    request(`/api/profiles/${encodeURIComponent(steamId)}/saved-views`, {
-      method: "POST",
-      body: JSON.stringify(body),
-    }),
+    request(`${profilePath(steamId)}/saved-views`, { method: "POST", body: JSON.stringify(body) }),
 
   updateSavedView: (steamId, id, body) =>
-    request(`/api/profiles/${encodeURIComponent(steamId)}/saved-views/${id}`, {
-      method: "PUT",
-      body: JSON.stringify(body),
-    }),
+    request(`${profilePath(steamId)}/saved-views/${id}`, { method: "PUT", body: JSON.stringify(body) }),
 
   selectSavedView: (steamId, id) =>
-    request(`/api/profiles/${encodeURIComponent(steamId)}/saved-views/selection`, {
-      method: "PUT",
-      body: JSON.stringify({ id }),
-    }),
+    request(`${profilePath(steamId)}/saved-views/selection`, { method: "PUT", body: JSON.stringify({ id }) }),
 
-  deleteSavedView: async (steamId, id) => {
-    const response = await fetch(`/api/profiles/${encodeURIComponent(steamId)}/saved-views/${id}`, {
-      method: "DELETE",
-    });
-    if (!response.ok) {
-      let message = `Request failed (${response.status}).`;
-      try {
-        const problem = await response.json();
-        message = problem.detail || problem.title || message;
-      } catch {
-        /* body wasn't ProblemDetails JSON; keep the generic message */
-      }
-      throw new Error(message);
-    }
-  },
+  deleteSavedView: (steamId, id) => request(`${profilePath(steamId)}/saved-views/${id}`, { method: "DELETE" }),
+
+  getAppDetails: (appId) => request(`/api/apps/${appId}/details`),
+
+  getAchievements: (steamId, appId) => request(`${profilePath(steamId)}/games/${appId}/achievements`),
+
+  getWishlist: (steamId) => request(`${profilePath(steamId)}/wishlist`),
+
+  getHistory: (steamId) => request(`${profilePath(steamId)}/history`),
+
+  getMonthlyPlaytime: (steamId, months = 24) => request(`${profilePath(steamId)}/playtime/monthly?months=${months}`),
+
+  getTimeToBeat: (appId, name) => request(`/api/apps/${appId}/time-to-beat?name=${encodeURIComponent(name)}`),
 };

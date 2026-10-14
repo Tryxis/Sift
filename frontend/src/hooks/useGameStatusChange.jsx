@@ -1,7 +1,7 @@
 import { createPortal } from "react-dom";
 import { useCallback, useEffect, useRef, useState } from "react";
 
-function CompletionPrompt({ game, status, finishedHours, triggerRect, onClose, onConfirm }) {
+function CompletionPrompt({ game, status, finishedHours, triggerRect, onClose, onConfirm, container }) {
   const cancelRef = useRef(null);
   const dialogRef = useRef(null);
   const [viewport, setViewport] = useState(() => ({
@@ -100,11 +100,15 @@ function CompletionPrompt({ game, status, finishedHours, triggerRect, onClose, o
         </div>
       </section>
     </div>,
-    document.body
+    container ?? document.body
   );
 }
 
-export function useGameStatusChange(game, onUpdateGame) {
+/**
+ * Status changes to Completed/Abandoned ask whether to copy Steam playtime into Finished Hours.
+ * Pass `container` when used inside a modal dialog so the prompt stays within its focus trap.
+ */
+export function useGameStatusChange(game, onUpdateGame, { container } = {}) {
   const [completionPrompt, setCompletionPrompt] = useState(null);
   const closeCompletionPrompt = useCallback(() => setCompletionPrompt(null), []);
 
@@ -135,6 +139,7 @@ export function useGameStatusChange(game, onUpdateGame) {
         triggerRect={completionPrompt.triggerRect}
         onClose={closeCompletionPrompt}
         onConfirm={confirmCompletion}
+        container={container}
       />
     ),
   };

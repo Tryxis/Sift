@@ -30,6 +30,14 @@ export function formatRelativeTime(isoDate) {
   return "";
 }
 
+/** "12 Mar 2026"; the year is dropped for dates in the current year when `short` is set. */
+export function formatDate(isoDate, { short = false } = {}) {
+  if (!isoDate) return "";
+  const date = new Date(isoDate);
+  const sameYear = date.getFullYear() === new Date().getFullYear();
+  return date.toLocaleDateString("en-GB", { day: "numeric", month: "short", ...(short && sameYear ? {} : { year: "numeric" }) });
+}
+
 export function minutesToHours(minutes) {
   const hours = minutes / 60;
   return hours < 10 ? Math.round(hours * 10) / 10 : Math.round(hours);

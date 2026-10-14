@@ -76,20 +76,6 @@
 }
 
 @layer components {
-  .status-selector-container {
-    container: status-selector / inline-size;
-  }
-
-  .status-picker-label {
-    display: none;
-  }
-
-  @container status-selector (min-width: 250px) {
-    .status-picker-label {
-      display: inline;
-    }
-  }
-
   /* The system's one signature flourish: a soft nebula behind the header. */
   .nebula {
     position: absolute;

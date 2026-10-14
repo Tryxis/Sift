@@ -1,93 +1,175 @@
 import { useCallback, useMemo, useState } from "react";
 import { COMPLETED_BEFORE_FILTER, STATUSES } from "@/lib/status";
-import { matchesFilters } from "@/lib/filters";
+import { hasBound, matchesFilters } from "@/lib/filters";
+import { progressPercent, valueScore } from "@/lib/gameMath";
 
 export const PAGE_SIZES = [10, 20, 50, 100];
+
+export const SORT_OPTIONS = [
+  { id: "name", label: "Name", read: (g) => g.name, defaultDirection: "ascending" },
+  { id: "status", label: "Status", read: (g) => STATUSES.indexOf(g.status), defaultDirection: "ascending" },
+  { id: "hours", label: "Hours played", read: (g) => g.playtimeForeverMinutes, defaultDirection: "descending" },
+  { id: "recentHours", label: "Hours, last 2 weeks", read: (g) => g.playtimeTwoWeeksMinutes || null, defaultDirection: "descending" },
+  { id: "lastPlayed", label: "Last played", read: (g) => (g.lastPlayedUtc ? Date.parse(g.lastPlayedUtc) : null), defaultDirection: "descending" },
+  { id: "reviewScore", label: "Review score", read: (g) => g.reviewScore, defaultDirection: "descending" },
+  { id: "reviewCount", label: "Review count", read: (g) => g.reviewCount, defaultDirection: "descending" },
+  { id: "timeToBeat", label: "Time to beat", read: (g) => g.timeToBeatMainMinutes, defaultDirection: "ascending" },
+  { id: "progress", label: "Progress vs HLTB", read: progressPercent, defaultDirection: "descending" },
+  { id: "value", label: "Best value (score per hour)", read: valueScore, defaultDirection: "descending" },
+  { id: "priority", label: "Queue position", read: (g) => g.priority || null, defaultDirection: "ascending" },
+  { id: "achievements", label: "Achievements %", read: (g) => (g.achievementsTotal ? g.achievementsUnlocked / g.achievementsTotal : null), defaultDirection: "descending" },
+  { id: "releaseYear", label: "Release year", read: (g) => g.releaseYear, defaultDirection: "descending" },
+  { id: "statusChanged", label: "Status last changed", read: (g) => (g.statusChangedUtc ? Date.parse(g.statusChangedUtc) : null), defaultDirection: "descending" },
+  { id: "finishedHours", label: "Finished hours", read: (g) => g.finishedHours, defaultDirection: "descending" },
+  { id: "playedBefore", label: "Played before", read: (g) => (g.playedBefore ? 1 : 0), defaultDirection: "descending" },
+];
+
+const SORTS_BY_ID = Object.fromEntries(SORT_OPTIONS.map((option) => [option.id, option]));
+
+export const DEFAULT_CONFIGURATION = Object.freeze({
+  selectedStatuses: [],
+  excludedStatuses: [],
+  activeFilters: {},
+  playedBefore: null,
+  hasNotes: null,
+  genres: [],
+  deckCompatibility: [],
+  multiplayer: null,
+  showNotInterested: null,
+  reviewScoreOrder: null,
+  searchQuery: "",
+  pageSize: 20,
+  tableSortColumn: null,
+  tableSortDirection: null,
+});
 
 export function createFilterConfiguration(filters) {
   return {
     selectedStatuses: [...filters.selectedStatuses],
+    excludedStatuses: [...filters.excludedStatuses],
     activeFilters: structuredClone(filters.activeFilters),
     playedBefore: filters.playedBefore,
-    reviewScoreOrder: filters.reviewScoreOrder,
+    hasNotes: filters.hasNotes,
+    genres: [...filters.genres],
+    deckCompatibility: [...filters.deckCompatibility],
+    multiplayer: filters.multiplayer,
+    showNotInterested: filters.notInterested,
+    // Sorting is unified under tableSort*; reviewScoreOrder is kept for older saved views.
+    reviewScoreOrder: null,
     searchQuery: filters.searchQuery,
     pageSize: filters.pageSize,
-    tableSortColumn: filters.tableSortColumn,
-    tableSortDirection: filters.tableSortDirection,
+    tableSortColumn: filters.sortColumn,
+    tableSortDirection: filters.sortDirection,
   };
+}
+
+/** Comparable form of a configuration, ignoring empty range filters and key order. */
+export function configurationKey(configuration) {
+  const c = { ...DEFAULT_CONFIGURATION, ...configuration };
+  const legacyReviewOrder = c.reviewScoreOrder;
+  const filters = Object.entries(c.activeFilters ?? {})
+    .filter(([, bounds]) => hasBound(bounds))
+    .sort(([a], [b]) => a.localeCompare(b))
+    .map(([id, b]) => [id, `${b.min ?? ""}`, `${b.max ?? ""}`]);
+  return JSON.stringify([
+    [...(c.selectedStatuses ?? [])].sort(),
+    [...(c.excludedStatuses ?? [])].sort(),
+    filters,
+    c.playedBefore ?? null,
+    c.hasNotes ?? null,
+    [...(c.genres ?? [])].sort(),
+    [...(c.deckCompatibility ?? [])].sort(),
+    c.multiplayer ?? null,
+    c.showNotInterested ?? null,
+    (c.searchQuery ?? "").trim(),
+    c.tableSortColumn ?? (legacyReviewOrder ? "reviewScore" : null),
+    c.tableSortDirection ?? legacyReviewOrder ?? null,
+  ]);
+}
+
+function matchesStatusOption(game, option) {
+  return option === COMPLETED_BEFORE_FILTER ? game.status === "Completed" && game.playedBefore : game.status === option;
+}
+
+function matchesStatus(game, selectedStatuses, excludedStatuses) {
+  if (excludedStatuses.some((option) => matchesStatusOption(game, option))) return false;
+  return selectedStatuses.length === 0 || selectedStatuses.some((option) => matchesStatusOption(game, option));
 }
 
 /**
  * All client-side list shaping: status selection, granular filters, sorting and pagination.
+ *
+ * Two derived sets are exposed:
+ * - scopedGames: every filter except status. Stats and status counts describe this set, so
+ *   picking a status doesn't collapse "Completed" to 0% — it highlights a slice of the scope.
+ * - filteredGames: scope narrowed by the selected/excluded statuses, sorted. This is what's listed.
+ *
  * Any change to a filter or page size sends you back to page 1.
  */
 export function useGameFilters(games) {
   const [selectedStatuses, setSelectedStatuses] = useState([]);
+  const [excludedStatuses, setExcludedStatuses] = useState([]);
   const [activeFilters, setActiveFilters] = useState({}); // { [filterId]: { min, max } }
   const [playedBefore, setPlayedBeforeState] = useState(null);
-  const [reviewScoreOrder, setReviewScoreOrder] = useState(null);
-  const [tableSortColumn, setTableSortColumn] = useState(null);
-  const [tableSortDirection, setTableSortDirection] = useState(null);
-  const [searchQuery, setSearchQuery] = useState("");
+  const [hasNotes, setHasNotesState] = useState(null);
+  const [genres, setGenresState] = useState([]);
+  const [deckCompatibility, setDeckState] = useState([]);
+  const [multiplayer, setMultiplayerState] = useState(null);
+  const [notInterested, setNotInterestedState] = useState(null);
+  const [sortColumn, setSortColumn] = useState(null);
+  const [sortDirection, setSortDirection] = useState(null);
+  const [searchQuery, setSearchQueryState] = useState("");
   const [page, setPage] = useState(1);
   const [pageSize, setPageSizeState] = useState(20);
 
-  const statusCounts = useMemo(() => {
-    const counts = Object.fromEntries(STATUSES.map((s) => [s, 0]));
-    games.forEach((g) => (counts[g.status] = (counts[g.status] ?? 0) + 1));
-    counts[COMPLETED_BEFORE_FILTER] = games.filter((game) => game.status === "Completed" && game.playedBefore).length;
-    return { All: games.length, ...counts };
-  }, [games]);
-
-  const filtered = useMemo(() => {
+  const scopedGames = useMemo(() => {
     const normalizedSearch = searchQuery.trim().toLocaleLowerCase();
-    const result = games.filter(
+    return games.filter(
       (g) =>
-        (selectedStatuses.length === 0 || selectedStatuses.some((status) =>
-          status === COMPLETED_BEFORE_FILTER
-            ? g.status === "Completed" && g.playedBefore
-            : g.status === status
-        )) &&
         (playedBefore === null || g.playedBefore === playedBefore) &&
+        (hasNotes === null || Boolean(g.notes?.trim()) === hasNotes) &&
+        (notInterested === null || Boolean(g.notInterested) === notInterested) &&
+        (multiplayer === null || g.isMultiplayer === multiplayer) &&
+        (genres.length === 0 || genres.some((genre) => g.genres?.includes(genre))) &&
+        (deckCompatibility.length === 0 || deckCompatibility.includes(g.deckCompatibility ?? "Unknown")) &&
         (!normalizedSearch || g.name.toLocaleLowerCase().includes(normalizedSearch)) &&
         matchesFilters(g, activeFilters)
     );
-    if (reviewScoreOrder) {
+  }, [games, playedBefore, hasNotes, notInterested, multiplayer, genres, deckCompatibility, searchQuery, activeFilters]);
+
+  const statusCounts = useMemo(() => {
+    const counts = Object.fromEntries(STATUSES.map((s) => [s, 0]));
+    let completedBefore = 0;
+    scopedGames.forEach((g) => {
+      counts[g.status] = (counts[g.status] ?? 0) + 1;
+      if (g.status === "Completed" && g.playedBefore) completedBefore += 1;
+    });
+    return { All: scopedGames.length, ...counts, [COMPLETED_BEFORE_FILTER]: completedBefore };
+  }, [scopedGames]);
+
+  const filtered = useMemo(() => {
+    const result = scopedGames.filter((g) => matchesStatus(g, selectedStatuses, excludedStatuses));
+    const sort = sortColumn && sortDirection ? SORTS_BY_ID[sortColumn] : null;
+    if (sort) {
+      const direction = sortDirection === "ascending" ? 1 : -1;
       result.sort((a, b) => {
-        if (a.reviewScore == null) return b.reviewScore == null ? a.name.localeCompare(b.name) : 1;
-        if (b.reviewScore == null) return -1;
-        const scoreOrder = reviewScoreOrder === "ascending" ? 1 : -1;
-        return (a.reviewScore - b.reviewScore) * scoreOrder || a.name.localeCompare(b.name);
-      });
-    }
-    if (tableSortColumn && tableSortDirection) {
-      const values = {
-        name: (game) => game.name,
-        status: (game) => game.status,
-        hours: (game) => game.playtimeForeverMinutes,
-        reviewScore: (game) => game.reviewScore,
-        timeToBeat: (game) => game.timeToBeatMainMinutes,
-        finishedHours: (game) => game.finishedHours,
-        playedBefore: (game) => game.playedBefore,
-      };
-      const direction = tableSortDirection === "ascending" ? 1 : -1;
-      result.sort((a, b) => {
-        const left = values[tableSortColumn](a);
-        const right = values[tableSortColumn](b);
+        const left = sort.read(a);
+        const right = sort.read(b);
+        // Missing values always sink to the bottom, whichever way the column is sorted.
         if (left == null) return right == null ? a.name.localeCompare(b.name) : 1;
         if (right == null) return -1;
-        if (typeof left === "string") return left.localeCompare(right) * direction;
-        return (left < right ? -1 : left > right ? 1 : 0) * direction;
+        const order = typeof left === "string" ? left.localeCompare(right) : left - right;
+        return order * direction || a.name.localeCompare(b.name);
       });
     }
     return result;
-  }, [games, selectedStatuses, playedBefore, searchQuery, activeFilters, reviewScoreOrder, tableSortColumn, tableSortDirection]);
+  }, [scopedGames, selectedStatuses, excludedStatuses, sortColumn, sortDirection]);
 
   const pageCount = Math.max(1, Math.ceil(filtered.length / pageSize));
   const currentPage = Math.min(page, pageCount);
   const start = (currentPage - 1) * pageSize;
 
-  const setFilter = (id, bounds) => {
+  const setFilter = useCallback((id, bounds) => {
     setActiveFilters((current) => {
       const next = { ...current };
       if (bounds === null) delete next[id];
@@ -95,73 +177,109 @@ export function useGameFilters(games) {
       return next;
     });
     setPage(1);
-  };
+  }, []);
 
   const applyConfiguration = useCallback((configuration) => {
-    setSelectedStatuses(configuration.selectedStatuses ?? []);
-    setActiveFilters(configuration.activeFilters ?? {});
-    setPlayedBeforeState(configuration.playedBefore ?? null);
-    setReviewScoreOrder(configuration.reviewScoreOrder ?? null);
-    setTableSortColumn(configuration.tableSortColumn ?? null);
-    setTableSortDirection(configuration.tableSortDirection ?? null);
-    setSearchQuery(configuration.searchQuery ?? "");
-    setPageSizeState(configuration.pageSize ?? 20);
+    const c = { ...DEFAULT_CONFIGURATION, ...configuration };
+    setSelectedStatuses(c.selectedStatuses ?? []);
+    setExcludedStatuses(c.excludedStatuses ?? []);
+    setActiveFilters(c.activeFilters ?? {});
+    setPlayedBeforeState(c.playedBefore ?? null);
+    setHasNotesState(c.hasNotes ?? null);
+    setGenresState(c.genres ?? []);
+    setDeckState(c.deckCompatibility ?? []);
+    setMultiplayerState(c.multiplayer ?? null);
+    setNotInterestedState(c.showNotInterested ?? null);
+    // Older saved views stored a separate review-score order; fold it into the unified sort.
+    const legacyReviewOrder = c.reviewScoreOrder;
+    setSortColumn(c.tableSortColumn ?? (legacyReviewOrder ? "reviewScore" : null));
+    setSortDirection(c.tableSortDirection ?? legacyReviewOrder ?? null);
+    setSearchQueryState(c.searchQuery ?? "");
+    setPageSizeState(PAGE_SIZES.includes(c.pageSize) ? c.pageSize : 20);
     setPage(1);
   }, []);
 
   const clearFilters = useCallback(() => {
-    setSelectedStatuses([]);
-    setActiveFilters({});
-    setPlayedBeforeState(null);
-    setReviewScoreOrder(null);
-    setTableSortColumn(null);
-    setTableSortDirection(null);
-    setSearchQuery("");
+    applyConfiguration({ pageSize });
+  }, [applyConfiguration, pageSize]);
+
+  /** Status chips cycle: off → show only → hide → off. */
+  const cycleStatus = useCallback((value) => {
+    const isSelected = selectedStatuses.includes(value);
+    const isExcluded = excludedStatuses.includes(value);
+    if (!isSelected && !isExcluded) setSelectedStatuses((current) => [...current, value]);
+    else if (isSelected) {
+      setSelectedStatuses((current) => current.filter((status) => status !== value));
+      setExcludedStatuses((current) => [...current, value]);
+    } else setExcludedStatuses((current) => current.filter((status) => status !== value));
+    setPage(1);
+  }, [selectedStatuses, excludedStatuses]);
+
+  /** Plain include toggle (used by the stats legend). */
+  const toggleStatus = useCallback((value) => {
+    setExcludedStatuses((current) => current.filter((status) => status !== value));
+    setSelectedStatuses((current) =>
+      current.includes(value) ? current.filter((status) => status !== value) : [...current, value]
+    );
     setPage(1);
   }, []);
 
+  const clearStatuses = useCallback(() => {
+    setSelectedStatuses([]);
+    setExcludedStatuses([]);
+    setPage(1);
+  }, []);
+
+  // Filters that narrow the scope (everything except status and sort).
+  const scopeFilterCount =
+    Object.values(activeFilters).filter(hasBound).length +
+    (playedBefore === null ? 0 : 1) +
+    (hasNotes === null ? 0 : 1) +
+    (notInterested === null ? 0 : 1) +
+    (multiplayer === null ? 0 : 1) +
+    (genres.length ? 1 : 0) +
+    (deckCompatibility.length ? 1 : 0) +
+    (searchQuery.trim() ? 1 : 0);
+
+  const withPageReset = (setter) => (value) => {
+    setter(value);
+    setPage(1);
+  };
+
   return {
     selectedStatuses,
-    setSelectedStatuses: (value) => {
-      setSelectedStatuses(value);
-      setPage(1);
-    },
-    tableSortColumn,
-    tableSortDirection,
-    setTableSort: (column, direction) => {
-      setTableSortColumn(column);
-      setTableSortDirection(direction);
-      setPage(1);
-    },
-    toggleStatus: (value) => {
-      setSelectedStatuses((current) =>
-        current.includes(value) ? current.filter((status) => status !== value) : [...current, value]
-      );
-      setPage(1);
-    },
-    clearStatuses: () => {
-      setSelectedStatuses([]);
+    excludedStatuses,
+    cycleStatus,
+    toggleStatus,
+    clearStatuses,
+    sortColumn,
+    sortDirection,
+    setSort: (column, direction) => {
+      setSortColumn(column);
+      setSortDirection(column ? direction : null);
       setPage(1);
     },
     activeFilters,
     setFilter,
     applyConfiguration,
-    reviewScoreOrder,
-    setReviewScoreOrder: (value) => {
-      setReviewScoreOrder(value);
-      setPage(1);
-    },
     searchQuery,
-    setSearchQuery: (value) => {
-      setSearchQuery(value);
-      setPage(1);
-    },
+    setSearchQuery: withPageReset(setSearchQueryState),
     playedBefore,
-    setPlayedBefore: (value) => {
-      setPlayedBeforeState(value);
-      setPage(1);
-    },
+    setPlayedBefore: withPageReset(setPlayedBeforeState),
+    hasNotes,
+    setHasNotes: withPageReset(setHasNotesState),
+    genres,
+    setGenres: withPageReset(setGenresState),
+    deckCompatibility,
+    setDeckCompatibility: withPageReset(setDeckState),
+    multiplayer,
+    setMultiplayer: withPageReset(setMultiplayerState),
+    notInterested,
+    setNotInterested: withPageReset(setNotInterestedState),
     statusCounts,
+    scopedGames,
+    scopeFilterCount,
+    isFiltered: scopeFilterCount > 0 || selectedStatuses.length > 0 || excludedStatuses.length > 0,
     filteredGames: filtered,
     filteredCount: filtered.length,
     pageItems: filtered.slice(start, start + pageSize),
@@ -169,10 +287,7 @@ export function useGameFilters(games) {
     pageCount,
     setPage,
     pageSize,
-    setPageSize: (value) => {
-      setPageSizeState(value);
-      setPage(1);
-    },
+    setPageSize: withPageReset(setPageSizeState),
     rangeStart: filtered.length ? start + 1 : 0,
     rangeEnd: Math.min(start + pageSize, filtered.length),
     clearFilters,

@@ -1,249 +1,376 @@
-import { useEffect, useState } from "react";
-import { Search, X, Clock, ThumbsUp, LayoutGrid, List, Save, Trash2, ChevronDown } from "lucide-react";
-import { createFilterConfiguration, useGameFilters } from "@/hooks/useGameFilters";
-import { api } from "@/lib/api";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { Search, X, LayoutGrid, List, Rows3, SlidersHorizontal, Sparkles } from "lucide-react";
+import { configurationKey, createFilterConfiguration, useGameFilters } from "@/hooks/useGameFilters";
+import { inversePatch } from "@/hooks/useLibrary";
+import { useKeyboardShortcuts } from "@/hooks/useKeyboardShortcuts";
+import { useSavedViews } from "@/hooks/useSavedViews";
 import { Button } from "@/components/ui/button";
+import { useToast } from "@/components/ui/toast";
+import { queueOf } from "@/lib/queue";
+import { readViewFromUrl, writeViewToUrl } from "@/lib/viewUrl";
+import { PRESET_VIEWS } from "@/lib/presets";
+import { STATUSES, STATUS_META } from "@/lib/status";
+import { cn } from "@/lib/utils";
+import { ActivityTab } from "./ActivityTab";
+import { BulkActionsBar } from "./BulkActionsBar";
+import { CompareTab } from "./CompareTab";
+import { DataMenu } from "./DataMenu";
 import { FilterBar } from "./FilterBar";
-import { GameCover } from "./GameCover";
+import { GameActionsProvider } from "./GameActions";
+import { GameDetailsDialog } from "./GameDetailsDialog";
 import { GameGrid } from "./GameGrid";
+import { GameList } from "./GameList";
 import { GameTable } from "./GameTable";
+import { HistoryTab } from "./HistoryTab";
+import { KeyboardShortcuts } from "./KeyboardShortcuts";
 import { MetricsDashboard } from "./MetricsDashboard";
 import { Pagination } from "./Pagination";
+import { PlayNext } from "./PlayNext";
 import { ProfileSummary } from "./ProfileSummary";
+import { SavedViewsMenu, SaveViewForm } from "./SavedViewsMenu";
 import { StatsPanel } from "./StatsPanel";
 import { StatusFilter } from "./StatusFilter";
-import { formatHours } from "@/lib/format";
+import { WishlistTab } from "./WishlistTab";
 
-function PlayNextList({ games }) {
-  const [expandedGameId, setExpandedGameId] = useState(null);
+const TABS = [
+  ["library", "Library"],
+  ["play-next", "Play Next"],
+  ["activity", "Activity"],
+  ["history", "History"],
+  ["wishlist", "Wishlist"],
+  ["compare", "Compare"],
+  ["metrics", "Metrics"],
+];
+const FILTERED_TABS = new Set(["library", "play-next", "metrics"]);
 
+const PRESENTATIONS = [
+  ["cards", "Cards", LayoutGrid, "g"],
+  ["list", "List", Rows3, "l"],
+  ["table", "Table", List, "t"],
+];
+const PRESENTATION_KEY = "sift:presentation";
+
+function readPresentation() {
+  try {
+    const stored = localStorage.getItem(PRESENTATION_KEY);
+    return PRESENTATIONS.some(([id]) => id === stored) ? stored : "cards";
+  } catch {
+    return "cards";
+  }
+}
+
+function PresentationToggle({ value, onChange }) {
+  const index = PRESENTATIONS.findIndex(([id]) => id === value);
   return (
-    <ol className="rounded-card border border-border bg-card px-4">
-      {games.map((game, index) => {
-        const expanded = expandedGameId === game.appId;
-        const detailsId = `play-next-details-${game.appId}`;
-        const estimates = [
-          ["Main story", game.timeToBeatMainMinutes],
-          ["Main + extras", game.timeToBeatMainExtrasMinutes],
-          ["Completionist", game.timeToBeatCompletionistMinutes],
-        ];
-
-        return (
-          <li key={game.appId} className="border-b border-border last:border-0">
-            <button
-              type="button"
-              aria-expanded={expanded}
-              aria-controls={detailsId}
-              className="flex w-full items-center gap-3 py-2.5 text-left transition-colors hover:text-foreground"
-              onClick={() => setExpandedGameId(expanded ? null : game.appId)}
-            >
-              <span className="w-5 shrink-0 text-xs tabular-nums text-muted-foreground">{index + 1}</span>
-              <span className="min-w-0 flex-1 truncate text-sm" title={game.name}>{game.name}</span>
-              <span className="flex shrink-0 items-center gap-3 text-xs tabular-nums text-muted-foreground">
-                <span className="flex items-center gap-1" title="Steam review score">
-                  <ThumbsUp className="h-3 w-3" aria-hidden="true" />
-                  {game.reviewScore.toFixed(1)}%
-                </span>
-                <span className="flex items-center gap-1" title="HLTB main-story estimate">
-                  <Clock className="h-3 w-3" aria-hidden="true" />
-                  {game.timeToBeatMainMinutes == null ? "—" : formatHours(game.timeToBeatMainMinutes)}
-                </span>
-              </span>
-              <ChevronDown
-                className={`h-4 w-4 shrink-0 text-muted-foreground transition-transform ${expanded ? "rotate-180" : ""}`}
-                aria-hidden="true"
-              />
-            </button>
-            <div
-              id={detailsId}
-              aria-hidden={!expanded}
-              className={`grid transition-[grid-template-rows] duration-300 ease-in-out ${
-                expanded ? "grid-rows-[1fr]" : "grid-rows-[0fr]"
-              }`}
-            >
-              <div className={`min-h-0 overflow-hidden transition-[opacity,transform] duration-200 ease-out ${
-                expanded ? "translate-y-0 opacity-100" : "translate-y-2 opacity-0"
-              }`}>
-                <div className="grid gap-4 pb-4 pl-8 sm:grid-cols-[minmax(0,320px)_1fr] sm:items-start">
-                  <GameCover
-                    appId={game.appId}
-                    name={game.name}
-                    src={game.headerImageUrl}
-                    className="w-full max-w-sm rounded-card border"
-                  />
-                  <div className="grid gap-4 sm:w-fit sm:grid-cols-[max-content_max-content] sm:gap-6">
-                    <section aria-label="HowLongToBeat estimates">
-                      <h3 className="text-xs font-medium uppercase tracking-wide text-muted-foreground">HowLongToBeat</h3>
-                      <dl className="mt-2 grid w-fit grid-cols-[max-content_max-content] gap-x-4 gap-y-2">
-                        {estimates.map(([label, minutes]) => (
-                          <div key={label} className="contents">
-                            <dt className="text-xs text-muted-foreground">{label}</dt>
-                            <dd className="text-sm tabular-nums">{minutes == null ? "—" : formatHours(minutes)}</dd>
-                          </div>
-                        ))}
-                      </dl>
-                    </section>
-                    <section aria-label="Steam review score" className="border-t border-border pt-4 sm:border-l sm:border-t-0 sm:pl-4 sm:pt-0">
-                      <h3 className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Steam reviews</h3>
-                      <p className="mt-2 flex items-center gap-2 text-sm tabular-nums">
-                        <ThumbsUp className="h-4 w-4 text-muted-foreground" aria-hidden="true" />
-                        {game.reviewScore.toFixed(1)}%
-                        {game.reviewCount != null && (
-                          <span className="text-xs text-muted-foreground">
-                            {game.reviewCount.toLocaleString()} reviews
-                          </span>
-                        )}
-                      </p>
-                    </section>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </li>
-        );
-      })}
-    </ol>
+    <div className="relative grid h-8 w-56 grid-cols-3 overflow-hidden rounded-well border border-border-strong bg-abyss" role="group" aria-label="Game presentation">
+      <span
+        aria-hidden="true"
+        className="pointer-events-none absolute inset-y-0 left-0 w-1/3 bg-status-playing/30 transition-transform duration-200 ease-out"
+        style={{ transform: `translateX(${index * 100}%)` }}
+      />
+      {PRESENTATIONS.map(([id, label, Icon, key]) => (
+        <button
+          key={id}
+          type="button"
+          aria-pressed={value === id}
+          onClick={() => onChange(id)}
+          title={`${label} (${key})`}
+          className={`relative z-10 flex items-center justify-center gap-1.5 text-xs font-medium transition-colors ${value === id ? "text-foreground" : "text-muted-foreground hover:text-foreground"}`}
+        >
+          <Icon className="h-3.5 w-3.5" aria-hidden="true" /> {label}
+        </button>
+      ))}
+    </div>
   );
 }
 
-export function LibraryView({ library, isSyncing, onResync, onUpdateGame }) {
+function SearchField({ value, onChange }) {
+  return (
+    <div className="relative min-w-0 flex-1">
+      <label htmlFor="game-search" className="sr-only">Search games</label>
+      <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" aria-hidden="true" />
+      <input
+        id="game-search"
+        type="search"
+        value={value}
+        onChange={(event) => onChange(event.target.value)}
+        onKeyDown={(event) => {
+          if (event.key !== "Escape") return;
+          if (value) onChange("");
+          else event.currentTarget.blur();
+        }}
+        placeholder="Search your games"
+        className="h-10 w-full rounded-well border border-border-strong bg-abyss py-2 pl-9 pr-10 text-base text-foreground placeholder:text-muted-foreground/70 focus-visible:border-muted-foreground/60 sm:h-9 sm:text-sm [&::-webkit-search-cancel-button]:hidden"
+      />
+      {value ? (
+        <button
+          type="button"
+          onClick={() => onChange("")}
+          aria-label="Clear game search"
+          className="absolute right-1.5 top-1/2 flex h-7 w-7 -translate-y-1/2 items-center justify-center rounded-full text-muted-foreground hover:bg-muted hover:text-foreground"
+        >
+          <X className="h-4 w-4" aria-hidden="true" />
+        </button>
+      ) : (
+        <kbd className="pointer-events-none absolute right-2.5 top-1/2 hidden -translate-y-1/2 rounded border border-border-strong px-1.5 text-[11px] text-muted-foreground sm:block">/</kbd>
+      )}
+    </div>
+  );
+}
+
+function NewGamesBanner({ games, onOpen, onDismiss }) {
+  if (!games.length) return null;
+  const shown = games.slice(0, 4);
+  return (
+    <div className="mb-5 flex items-start gap-3 rounded-card border border-status-playing/40 bg-status-playing/[0.07] px-4 py-3 text-sm">
+      <Sparkles className="mt-0.5 h-4 w-4 shrink-0 text-status-playing" aria-hidden="true" />
+      <p className="min-w-0 flex-1">
+        {games.length === 1 ? "1 new game" : `${games.length} new games`} since an earlier sync:{" "}
+        {shown.map((game, index) => (
+          <span key={game.appId}>
+            <button type="button" className="underline-offset-2 hover:underline" onClick={() => onOpen(game.appId)}>{game.name}</button>
+            {index < shown.length - 1 ? ", " : ""}
+          </span>
+        ))}
+        {games.length > shown.length && ` and ${games.length - shown.length} more`}. They&apos;re badged “New” for a week.
+      </p>
+      <button type="button" onClick={onDismiss} aria-label="Dismiss" className="text-muted-foreground hover:text-foreground">
+        <X className="h-4 w-4" />
+      </button>
+    </div>
+  );
+}
+
+export function LibraryView({ library, newAppIds, isSyncing, onResync, onUpdateGame, onUpdateGames }) {
+  const toast = useToast();
+  const [urlView] = useState(readViewFromUrl);
   const filters = useGameFilters(library.games);
+  const savedViews = useSavedViews(library.profile.steamId, filters, { restoreSelection: !urlView });
   const [activeTab, setActiveTab] = useState("library");
-  const [presentation, setPresentation] = useState("cards");
-  const [savedViews, setSavedViews] = useState([]);
-  const [selectedViewId, setSelectedViewId] = useState("");
-  const [savedViewName, setSavedViewName] = useState("");
-  const [savedViewsLoading, setSavedViewsLoading] = useState(true);
-  const [savedViewsError, setSavedViewsError] = useState("");
+  const [presentation, setPresentationState] = useState(readPresentation);
+  const [showMobileFilters, setShowMobileFilters] = useState(false);
+  const [isSavingView, setIsSavingView] = useState(false);
+  const [activePresetId, setActivePresetId] = useState(null);
+  const [detailsAppId, setDetailsAppId] = useState(null);
+  const [showShortcuts, setShowShortcuts] = useState(false);
+  const [selectedIds, setSelectedIds] = useState(() => new Set());
+  const [newBannerDismissed, setNewBannerDismissed] = useState(false);
 
+  // A shared link's filters win over the remembered saved view.
+  const { applyConfiguration } = filters;
   useEffect(() => {
-    let cancelled = false;
-    api.getSavedViews(library.profile.steamId)
-      .then((views) => {
-        if (cancelled) return;
-        setSavedViews(views);
-        const selectedView = views.find((view) => view.isSelected);
-        if (selectedView) {
-          setSelectedViewId(selectedView.id);
-          filters.applyConfiguration(selectedView.configuration);
-        }
-      })
-      .catch((error) => {
-        if (!cancelled) setSavedViewsError(`Saved views couldn't be loaded: ${error.message}`);
-      })
-      .finally(() => {
-        if (!cancelled) setSavedViewsLoading(false);
+    if (urlView) applyConfiguration(urlView);
+  }, [urlView, applyConfiguration]);
+
+  const currentConfiguration = createFilterConfiguration(filters);
+  const currentKey = configurationKey(currentConfiguration);
+  useEffect(() => {
+    writeViewToUrl(currentConfiguration);
+    // currentKey (plus page size) captures every change that matters for the URL.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentKey, filters.pageSize]);
+
+  const activePreset = savedViews.selectedView ? null : PRESET_VIEWS.find((preset) => preset.id === activePresetId) ?? null;
+  const appliedView = savedViews.selectedView ?? activePreset;
+  const isModified = Boolean(appliedView) && configurationKey(appliedView.configuration) !== currentKey;
+
+  // ---- Updates, with an undo toast for anything that changes status ----
+  const gamesRef = useRef(library.games);
+  gamesRef.current = library.games;
+
+  const updateGame = useCallback((appId, patch) => {
+    const previous = gamesRef.current.find((game) => game.appId === appId);
+    onUpdateGame(appId, patch);
+    if (previous && "status" in patch && patch.status !== previous.status) {
+      const inverse = inversePatch(previous, patch);
+      toast.show({
+        message: `${previous.name} → ${STATUS_META[patch.status].label}`,
+        action: { label: "Undo", onClick: () => onUpdateGame(appId, inverse) },
       });
-    return () => { cancelled = true; };
-  }, [library.profile.steamId, filters.applyConfiguration]);
+    }
+  }, [onUpdateGame, toast]);
 
-  const selectSavedView = async (id) => {
-    setSavedViewsError("");
+  const updateGamesWithUndo = useCallback(async (changes, message) => {
+    if (!changes.length) return;
+    const byId = new Map(gamesRef.current.map((game) => [game.appId, game]));
+    const inverses = changes
+      .filter(({ appId }) => byId.has(appId))
+      .map(({ appId, patch }) => ({ appId, patch: inversePatch(byId.get(appId), patch) }));
+    const failed = await onUpdateGames(changes.map(({ appId, patch }) => ({ appId, patch })));
+    toast.show({
+      message: failed ? `${message} (${failed} failed)` : message,
+      action: { label: "Undo", onClick: () => onUpdateGames(inverses) },
+      duration: 10000,
+    });
+  }, [onUpdateGames, toast]);
+
+  const queuePositions = useMemo(
+    () => new Map(queueOf(library.games).map((game, index) => [game.appId, index + 1])),
+    [library.games]
+  );
+
+  const actions = useMemo(() => ({
+    steamId: library.profile.steamId,
+    games: library.games,
+    newAppIds,
+    queuePositions,
+    openDetails: setDetailsAppId,
+    updateGame,
+    updateGames: onUpdateGames,
+  }), [library.profile.steamId, library.games, newAppIds, queuePositions, updateGame, onUpdateGames]);
+
+  const detailsGame = detailsAppId == null ? null : library.games.find((game) => game.appId === detailsAppId) ?? null;
+
+  // ---- Views ----
+  const setPresentation = (value) => {
+    setPresentationState(value);
     try {
-      const views = await api.selectSavedView(library.profile.steamId, id || null);
-      setSavedViews(views);
-      setSelectedViewId(id);
-      const selectedView = views.find((view) => view.id === id);
-      if (selectedView) filters.applyConfiguration(selectedView.configuration);
-      else filters.clearFilters();
-    } catch (error) {
-      setSavedViewsError(`Saved view couldn't be selected: ${error.message}`);
+      localStorage.setItem(PRESENTATION_KEY, value);
+    } catch {
+      /* storage unavailable; the choice just won't persist */
     }
   };
 
-  const saveCurrentView = async (event) => {
-    event.preventDefault();
-    const name = savedViewName.trim();
-    if (!name) return;
-    setSavedViewsError("");
-    try {
-      const saved = await api.createSavedView(library.profile.steamId, {
-        name,
-        configuration: createFilterConfiguration(filters),
-      });
-      setSavedViews((current) => [
-        ...current.map((view) => ({ ...view, isSelected: false })),
-        saved,
-      ].sort((a, b) => a.name.localeCompare(b.name)));
-      setSelectedViewId(saved.id);
-      setSavedViewName("");
-    } catch (error) {
-      setSavedViewsError(`Saved view couldn't be saved: ${error.message}`);
-    }
+  const applyPreset = (preset) => {
+    savedViews.deselect();
+    filters.applyConfiguration({ pageSize: filters.pageSize, ...preset.configuration });
+    setActivePresetId(preset.id);
+    if (!FILTERED_TABS.has(activeTab)) setActiveTab("library");
   };
 
-  const updateSelectedView = async () => {
-    if (!selectedViewId) return;
-    const view = savedViews.find((item) => item.id === selectedViewId);
-    if (!view) return;
-    setSavedViewsError("");
-    try {
-      const updated = await api.updateSavedView(library.profile.steamId, selectedViewId, {
-        name: view.name,
-        configuration: createFilterConfiguration(filters),
-      });
-      setSavedViews((current) => current.map((item) => item.id === updated.id ? { ...item, ...updated, isSelected: true } : item));
-    } catch (error) {
-      setSavedViewsError(`Saved view couldn't be updated: ${error.message}`);
-    }
+  const clearAll = () => {
+    setActivePresetId(null);
+    if (savedViews.selectedView) savedViews.select("");
+    else filters.clearFilters();
   };
 
-  const deleteSelectedView = async () => {
-    if (!selectedViewId) return;
-    setSavedViewsError("");
+  const copyLink = async () => {
     try {
-      await api.deleteSavedView(library.profile.steamId, selectedViewId);
-      const views = savedViews.filter((view) => view.id !== selectedViewId);
-      setSavedViews(views);
-      setSelectedViewId("");
-      filters.clearFilters();
-    } catch (error) {
-      setSavedViewsError(`Saved view couldn't be deleted: ${error.message}`);
+      await navigator.clipboard.writeText(window.location.href);
+      toast.show({ message: "Link to these filters copied", duration: 3000 });
+    } catch {
+      toast.show({ message: "Couldn't copy automatically. Copy the address bar instead.", duration: 5000 });
     }
-  };
-
-  const clearFiltersAndSavedView = async () => {
-    await selectSavedView("");
   };
 
   const changePage = (page) => {
     filters.setPage(page);
-    document.getElementById("library-grid")?.scrollIntoView({ behavior: "smooth", block: "start" });
+    document.getElementById("library-results")?.scrollIntoView({ behavior: "smooth", block: "start" });
+  };
+
+  const goToTab = (tab) => {
+    setActiveTab(tab);
+    document.getElementById(`view-tab-${tab}`)?.focus();
   };
 
   const handleTabKeyDown = (event) => {
     if (!["ArrowLeft", "ArrowRight", "Home", "End"].includes(event.key)) return;
     event.preventDefault();
-    const tabs = ["library", "play-next", "metrics"];
-    const currentIndex = tabs.indexOf(activeTab);
+    const ids = TABS.map(([id]) => id);
+    const currentIndex = ids.indexOf(activeTab);
     const nextTab = event.key === "Home"
-      ? tabs[0]
+      ? ids[0]
       : event.key === "End"
-        ? tabs[tabs.length - 1]
-        : tabs[(currentIndex + (event.key === "ArrowRight" ? 1 : -1) + tabs.length) % tabs.length];
-    setActiveTab(nextTab);
-    document.getElementById(`view-tab-${nextTab}`)?.focus();
+        ? ids[ids.length - 1]
+        : ids[(currentIndex + (event.key === "ArrowRight" ? 1 : -1) + ids.length) % ids.length];
+    goToTab(nextTab);
   };
 
-  const playNextGames = filters.filteredGames
-    .filter((game) => game.status === "Backlog" && game.playtimeForeverMinutes === 0 && game.reviewScore != null)
-    .sort((a, b) => b.reviewScore - a.reviewScore || (a.timeToBeatMainMinutes ?? Infinity) - (b.timeToBeatMainMinutes ?? Infinity));
+  // ---- Bulk selection (table) — only games still in the filtered list count ----
+  const visibleSelection = useMemo(
+    () => filters.filteredGames.filter((game) => selectedIds.has(game.appId)),
+    [filters.filteredGames, selectedIds]
+  );
+  const bulkChanges = (patchFor) => visibleSelection.map((game) => ({ appId: game.appId, patch: patchFor(game) })).filter(({ patch }) => patch);
+  const bulkSetStatus = (status) =>
+    updateGamesWithUndo(
+      bulkChanges((game) => (game.status === status ? null : { status })),
+      `${visibleSelection.length} games → ${STATUS_META[status].label}`
+    );
+  const bulkSetPlayedBefore = (value) =>
+    updateGamesWithUndo(
+      bulkChanges((game) => (game.playedBefore === value ? null : { playedBefore: value })),
+      `Played before set to ${value ? "yes" : "no"} for ${visibleSelection.length} games`
+    );
+  const bulkAddToQueue = () => {
+    let next = library.games.reduce((max, game) => Math.max(max, game.priority ?? 0), 0);
+    const changes = visibleSelection
+      .filter((game) => !(game.priority > 0))
+      .map((game) => ({ appId: game.appId, patch: { priority: Math.min(++next, 9999) } }));
+    updateGamesWithUndo(changes, `${changes.length} games added to Up Next`);
+  };
+
+  // ---- Keyboard shortcuts ----
+  const statusKeys = Object.fromEntries(
+    STATUSES.map((status, index) => [
+      String(index + 1),
+      ({ appId }) => {
+        if (appId == null) return false;
+        const game = gamesRef.current.find((item) => item.appId === appId);
+        if (game && game.status !== status) updateGame(appId, { status });
+        return true;
+      },
+    ])
+  );
+  const tabIds = TABS.map(([id]) => id);
+  useKeyboardShortcuts({
+    "/": () => {
+      if (!FILTERED_TABS.has(activeTab)) setActiveTab("library");
+      requestAnimationFrame(() => document.getElementById("game-search")?.focus());
+    },
+    "?": () => setShowShortcuts(true),
+    "[": () => goToTab(tabIds[(tabIds.indexOf(activeTab) - 1 + tabIds.length) % tabIds.length]),
+    "]": () => goToTab(tabIds[(tabIds.indexOf(activeTab) + 1) % tabIds.length]),
+    g: () => activeTab === "library" && setPresentation("cards"),
+    t: () => activeTab === "library" && setPresentation("table"),
+    l: () => activeTab === "library" && setPresentation("list"),
+    n: () => activeTab === "library" && filters.page < filters.pageCount && changePage(filters.page + 1),
+    p: () => activeTab === "library" && filters.page > 1 && changePage(filters.page - 1),
+    d: ({ appId }) => (appId == null ? false : setDetailsAppId(appId)),
+    ...statusKeys,
+  });
+
+  // Count of the secondary filters that hide behind the "Filters" button on phones.
+  const secondaryFilterCount =
+    Object.keys(filters.activeFilters).length +
+    (filters.playedBefore === null ? 0 : 1) +
+    (filters.hasNotes === null ? 0 : 1) +
+    (filters.genres.length ? 1 : 0) +
+    (filters.deckCompatibility.length ? 1 : 0) +
+    (filters.multiplayer === null ? 0 : 1) +
+    (filters.notInterested === null ? 0 : 1) +
+    (filters.sortColumn ? 1 : 0);
+  const hasAnythingToClear = filters.isFiltered || secondaryFilterCount > 0 || Boolean(appliedView);
+  const genreOptions = useMemo(
+    () => [...new Set(library.games.flatMap((game) => game.genres ?? []))].sort((a, b) => a.localeCompare(b)),
+    [library.games]
+  );
+  const newGames = useMemo(() => library.games.filter((game) => newAppIds.has(game.appId)), [library.games, newAppIds]);
 
   return (
-    <>
-      <ProfileSummary profile={library.profile} onResync={onResync} isSyncing={isSyncing} />
-      <section className="relative z-10 pt-5 sm:pt-6">
+    <GameActionsProvider value={actions}>
+      <ProfileSummary
+        profile={library.profile}
+        onResync={onResync}
+        isSyncing={isSyncing}
+        actions={
+          <DataMenu
+            library={library}
+            onShowShortcuts={() => setShowShortcuts(true)}
+            onApplyImport={(changes) => updateGamesWithUndo(changes, `Imported changes to ${changes.length} games`)}
+          />
+        }
+      />
+      {!newBannerDismissed && <NewGamesBanner games={newGames} onOpen={setDetailsAppId} onDismiss={() => setNewBannerDismissed(true)} />}
+
+      <section className="relative z-10">
         <div
-          className="mb-5 flex gap-2 border-b border-border"
+          className="-mx-5 mb-5 flex gap-1 overflow-x-auto border-b border-border px-5 [scrollbar-width:none] sm:mx-0 sm:px-0 [&::-webkit-scrollbar]:hidden"
           role="tablist"
           aria-label="Library views"
           onKeyDown={handleTabKeyDown}
         >
-          {[
-            ["library", "Library"],
-            ["play-next", "Play Next"],
-            ["metrics", "Metrics"],
-          ].map(([tab, label]) => (
+          {TABS.map(([tab, label]) => (
             <button
               key={tab}
               id={`view-tab-${tab}`}
@@ -253,7 +380,7 @@ export function LibraryView({ library, isSyncing, onResync, onUpdateGame }) {
               aria-controls={`view-panel-${tab}`}
               tabIndex={activeTab === tab ? 0 : -1}
               onClick={() => setActiveTab(tab)}
-              className={`-mb-px border-b-2 px-3 py-2 text-sm transition-colors ${
+              className={`-mb-px shrink-0 whitespace-nowrap border-b-2 px-3 py-2.5 text-sm transition-colors ${
                 activeTab === tab
                   ? "border-foreground text-foreground"
                   : "border-transparent text-muted-foreground hover:text-foreground"
@@ -263,136 +390,159 @@ export function LibraryView({ library, isSyncing, onResync, onUpdateGame }) {
             </button>
           ))}
         </div>
-        {activeTab === "library" && <StatsPanel games={filters.filteredGames} className="mb-5" />}
 
-        <div className="relative mb-4 max-w-xl">
-          <label htmlFor="game-search" className="sr-only">Search games</label>
-          <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" aria-hidden="true" />
-          <input
-            id="game-search"
-            type="search"
-            value={filters.searchQuery}
-            onChange={(event) => filters.setSearchQuery(event.target.value)}
-            placeholder="Search your games"
-            className="h-10 w-full rounded-well border border-border-strong bg-abyss py-2 pl-9 pr-10 text-base text-foreground placeholder:text-muted-foreground/70 focus-visible:border-muted-foreground/60 sm:text-sm"
-          />
-          {filters.searchQuery && (
-            <button
-              type="button"
-              onClick={() => filters.setSearchQuery("")}
-              aria-label="Clear game search"
-              className="absolute right-2 top-1/2 flex h-7 w-7 -translate-y-1/2 items-center justify-center rounded-full text-muted-foreground hover:bg-muted hover:text-foreground"
-            >
-              <X className="h-4 w-4" aria-hidden="true" />
-            </button>
-          )}
-        </div>
-        <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between">
-          <StatusFilter
+        {activeTab === "library" && (
+          <StatsPanel
+            games={filters.scopedGames}
+            libraryCount={library.games.length}
+            inViewCount={filters.filteredCount}
             selectedStatuses={filters.selectedStatuses}
-            counts={filters.statusCounts}
-            onToggle={filters.toggleStatus}
-            onClear={filters.clearStatuses}
+            onToggleStatus={filters.toggleStatus}
+            isScoped={filters.scopeFilterCount > 0}
+            className="mb-6"
           />
-          <FilterBar
-            activeFilters={filters.activeFilters}
-            onFilterChange={filters.setFilter}
-            playedBefore={filters.playedBefore}
-            onPlayedBeforeChange={filters.setPlayedBefore}
-            reviewScoreOrder={filters.reviewScoreOrder}
-            onReviewScoreOrderChange={filters.setReviewScoreOrder}
-          />
-        </div>
-        <div className="mb-5 flex flex-col gap-2 rounded-card border border-border bg-card/70 p-3 sm:flex-row sm:flex-wrap sm:items-center">
-          <label className="sr-only" htmlFor="saved-view-select">Saved filter views</label>
-          <div className="relative">
-            <select
-              id="saved-view-select"
-              value={selectedViewId}
-              onChange={(event) => {
-                if (event.target.value) selectSavedView(event.target.value);
-              }}
-              disabled={savedViewsLoading}
-              className="h-9 min-w-48 appearance-none rounded-well border border-border-strong bg-abyss py-2 pl-3 pr-9 text-sm text-foreground disabled:opacity-50"
-            >
-              <option value="" disabled>{savedViewsLoading ? "Loading saved views…" : "Saved filter views"}</option>
-              {savedViews.map((view) => <option key={view.id} value={view.id}>{view.name}</option>)}
-            </select>
-            <ChevronDown className="pointer-events-none absolute right-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" aria-hidden="true" />
-          </div>
-          <Button variant="ghost" size="sm" onClick={clearFiltersAndSavedView}>
-            <X className="h-3.5 w-3.5" aria-hidden="true" />
-            Clear filters
-          </Button>
-          {selectedViewId && (
-            <>
-              <Button variant="outline" size="sm" onClick={updateSelectedView}>
-                <Save className="h-3.5 w-3.5" aria-hidden="true" />
-                Update selected
-              </Button>
-              <Button variant="ghost" size="sm" onClick={deleteSelectedView} aria-label="Delete selected saved view">
-                <Trash2 className="h-3.5 w-3.5" aria-hidden="true" />
-                Delete
-              </Button>
-            </>
-          )}
-          <form className="flex min-w-0 flex-1 flex-wrap gap-2 sm:justify-end" onSubmit={saveCurrentView}>
-            <label htmlFor="saved-view-name" className="sr-only">Name for saved view</label>
-            <input
-              id="saved-view-name"
-              value={savedViewName}
-              onChange={(event) => setSavedViewName(event.target.value)}
-              maxLength={80}
-              placeholder="Name this filter view"
-              className="h-9 min-w-40 flex-1 rounded-well border border-border-strong bg-abyss px-3 text-sm placeholder:text-muted-foreground/70 sm:max-w-56"
-            />
-            <Button type="submit" variant="outline" size="sm" disabled={savedViewsLoading || !savedViewName.trim()}>
-              <Save className="h-3.5 w-3.5" aria-hidden="true" />
-              Save view
-            </Button>
-          </form>
-          {savedViewsError && <p role="alert" className="basis-full text-sm text-status-abandoned">{savedViewsError}</p>}
-        </div>
+        )}
 
-        {activeTab === "library" ? (
+        {FILTERED_TABS.has(activeTab) && (
+          <div className="mb-5 space-y-3">
+            <div className="flex items-center gap-2">
+              <SearchField value={filters.searchQuery} onChange={filters.setSearchQuery} />
+              <Button
+                variant={secondaryFilterCount ? "outline" : "dashed"}
+                size="sm"
+                className="h-10 shrink-0 rounded-well sm:hidden"
+                aria-expanded={showMobileFilters}
+                aria-controls="secondary-filters"
+                onClick={() => setShowMobileFilters((shown) => !shown)}
+                aria-label={`Filters and sort${secondaryFilterCount ? `, ${secondaryFilterCount} active` : ""}`}
+              >
+                <SlidersHorizontal className="h-4 w-4" aria-hidden="true" />
+                {secondaryFilterCount > 0 && <span className="tabular-nums">{secondaryFilterCount}</span>}
+              </Button>
+              <SavedViewsMenu
+                savedViews={{ ...savedViews, select: (id) => { setActivePresetId(null); return savedViews.select(id); } }}
+                activePreset={activePreset}
+                isModified={isModified}
+                onApplyPreset={applyPreset}
+                onClose={clearAll}
+                onStartSave={() => setIsSavingView(true)}
+                onCopyLink={copyLink}
+                className="max-w-[8rem] shrink-0 px-3 sm:max-w-[16rem]"
+              />
+            </div>
+
+            {isSavingView && (
+              <SaveViewForm
+                defaultName={activePreset ? `${activePreset.name} (mine)` : ""}
+                onSave={async (name) => {
+                  const saved = await savedViews.saveAs(name);
+                  if (saved) setActivePresetId(null);
+                  return saved;
+                }}
+                onCancel={() => setIsSavingView(false)}
+              />
+            )}
+
+            {activeTab !== "play-next" && (
+              <StatusFilter
+                selectedStatuses={filters.selectedStatuses}
+                excludedStatuses={filters.excludedStatuses}
+                counts={filters.statusCounts}
+                onCycle={filters.cycleStatus}
+                onClear={filters.clearStatuses}
+              />
+            )}
+
+            <div
+              id="secondary-filters"
+              className={cn("flex-wrap items-center justify-between gap-2 sm:flex", showMobileFilters ? "flex" : "hidden")}
+            >
+              <FilterBar
+                activeFilters={filters.activeFilters}
+                onFilterChange={filters.setFilter}
+                playedBefore={filters.playedBefore}
+                onPlayedBeforeChange={filters.setPlayedBefore}
+                hasNotes={filters.hasNotes}
+                onHasNotesChange={filters.setHasNotes}
+                genreOptions={genreOptions}
+                genres={filters.genres}
+                onGenresChange={filters.setGenres}
+                deckCompatibility={filters.deckCompatibility}
+                onDeckCompatibilityChange={filters.setDeckCompatibility}
+                multiplayer={filters.multiplayer}
+                onMultiplayerChange={filters.setMultiplayer}
+                notInterested={filters.notInterested}
+                onNotInterestedChange={filters.setNotInterested}
+                sortColumn={filters.sortColumn}
+                sortDirection={filters.sortDirection}
+                onSortChange={filters.setSort}
+                showSort={activeTab === "library"}
+              />
+              {hasAnythingToClear && (
+                <Button variant="ghost" size="sm" onClick={clearAll}>
+                  <X className="h-3.5 w-3.5" aria-hidden="true" />
+                  Clear all
+                </Button>
+              )}
+            </div>
+
+            {savedViews.error && (
+              <p role="alert" className="flex items-start justify-between gap-3 text-sm text-status-abandoned">
+                {savedViews.error}
+                <button type="button" onClick={savedViews.dismissError} aria-label="Dismiss" className="text-muted-foreground hover:text-foreground">
+                  <X className="h-4 w-4" />
+                </button>
+              </p>
+            )}
+          </div>
+        )}
+
+        {activeTab === "library" && (
           <div id="view-panel-library" role="tabpanel" aria-labelledby="view-tab-library">
-            <div id="library-grid" className="scroll-mt-6 pt-8 sm:pt-10">
+            <div id="library-results" className="scroll-mt-4">
               <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
-                <p className="text-sm text-muted-foreground">{filters.filteredCount.toLocaleString()} games</p>
-                <div className="relative grid h-8 w-48 grid-cols-2 overflow-hidden rounded-well border border-border-strong bg-abyss p-0" role="group" aria-label="Game presentation">
-                  <span
-                    aria-hidden="true"
-                    className={`pointer-events-none absolute inset-y-0 left-0 w-1/2 bg-status-playing/30 transition-transform duration-200 ease-out ${presentation === "table" ? "translate-x-full" : ""}`}
-                  />
-                  <button
-                    type="button"
-                    aria-pressed={presentation === "cards"}
-                    onClick={() => setPresentation("cards")}
-                    className={`relative z-10 flex items-center justify-center gap-1.5 rounded-none text-xs font-medium transition-colors ${presentation === "cards" ? "text-foreground" : "text-muted-foreground"}`}
-                  >
-                    <LayoutGrid className="h-3.5 w-3.5" aria-hidden="true" /> Cards
-                  </button>
-                  <button
-                    type="button"
-                    aria-pressed={presentation === "table"}
-                    onClick={() => setPresentation("table")}
-                    className={`relative z-10 flex items-center justify-center gap-1.5 rounded-none text-xs font-medium transition-colors ${presentation === "table" ? "text-foreground" : "text-muted-foreground"}`}
-                  >
-                    <List className="h-3.5 w-3.5" aria-hidden="true" /> Table
-                  </button>
-                </div>
+                <p className="text-sm text-muted-foreground" aria-live="polite">
+                  {filters.isFiltered
+                    ? `${filters.filteredCount.toLocaleString()} of ${library.games.length.toLocaleString()} games`
+                    : `${filters.filteredCount.toLocaleString()} games`}
+                </p>
+                <PresentationToggle value={presentation} onChange={setPresentation} />
               </div>
-              {presentation === "cards"
-                ? <GameGrid games={filters.pageItems} onUpdateGame={onUpdateGame} onClearFilters={clearFiltersAndSavedView} />
-                : (
-                  <GameTable
-                    games={filters.pageItems}
-                    sortColumn={filters.tableSortColumn}
-                    sortDirection={filters.tableSortDirection}
-                    onSortChange={filters.setTableSort}
-                    onUpdateGame={onUpdateGame}
-                  />
-                )}
+
+              {presentation === "table" && (
+                <BulkActionsBar
+                  count={visibleSelection.length}
+                  matchingCount={filters.filteredCount}
+                  onSelectAllMatching={() => setSelectedIds(new Set(filters.filteredGames.map((game) => game.appId)))}
+                  onClear={() => setSelectedIds(new Set())}
+                  onSetStatus={bulkSetStatus}
+                  onSetPlayedBefore={bulkSetPlayedBefore}
+                  onAddToQueue={bulkAddToQueue}
+                />
+              )}
+
+              {filters.filteredCount === 0 ? (
+                <div className="flex flex-col items-center gap-4 rounded-card border border-dashed border-border-strong px-4 py-16 text-center">
+                  <p className="text-muted-foreground">No games match these filters.</p>
+                  <Button variant="outline" size="sm" onClick={clearAll}>
+                    Clear all filters
+                  </Button>
+                </div>
+              ) : presentation === "cards" ? (
+                <GameGrid games={filters.pageItems} onUpdateGame={updateGame} />
+              ) : presentation === "list" ? (
+                <GameList games={filters.pageItems} onUpdateGame={updateGame} />
+              ) : (
+                <GameTable
+                  games={filters.pageItems}
+                  sortColumn={filters.sortColumn}
+                  sortDirection={filters.sortDirection}
+                  onSortChange={filters.setSort}
+                  onUpdateGame={updateGame}
+                  selectedIds={selectedIds}
+                  onSelectionChange={setSelectedIds}
+                />
+              )}
 
               <Pagination
                 page={filters.page}
@@ -406,26 +556,41 @@ export function LibraryView({ library, isSyncing, onResync, onUpdateGame }) {
               />
             </div>
           </div>
-        ) : activeTab === "play-next" ? (
+        )}
+        {activeTab === "play-next" && (
           <div id="view-panel-play-next" role="tabpanel" aria-labelledby="view-tab-play-next">
-            <section>
-              <div className="mb-4">
-                <h2 className="text-lg font-semibold">Play Next</h2>
-                <p className="text-sm text-muted-foreground">Unplayed, rated backlog games, ranked by review score. Current filters apply.</p>
-              </div>
-              {playNextGames.length ? (
-                <PlayNextList games={playNextGames} />
-              ) : (
-                <p className="rounded-card border border-border bg-card p-4 text-sm text-muted-foreground">No unplayed, rated backlog games match the current filters.</p>
-              )}
-            </section>
+            <PlayNext games={filters.scopedGames} allGames={library.games} />
           </div>
-        ) : (
+        )}
+        {activeTab === "activity" && (
+          <div id="view-panel-activity" role="tabpanel" aria-labelledby="view-tab-activity">
+            <ActivityTab games={library.games} />
+          </div>
+        )}
+        {activeTab === "history" && (
+          <div id="view-panel-history" role="tabpanel" aria-labelledby="view-tab-history">
+            <HistoryTab steamId={library.profile.steamId} games={library.games} />
+          </div>
+        )}
+        {activeTab === "wishlist" && (
+          <div id="view-panel-wishlist" role="tabpanel" aria-labelledby="view-tab-wishlist">
+            <WishlistTab steamId={library.profile.steamId} games={library.games} />
+          </div>
+        )}
+        {activeTab === "compare" && (
+          <div id="view-panel-compare" role="tabpanel" aria-labelledby="view-tab-compare">
+            <CompareTab profile={library.profile} games={library.games} />
+          </div>
+        )}
+        {activeTab === "metrics" && (
           <div id="view-panel-metrics" role="tabpanel" aria-labelledby="view-tab-metrics">
-            <MetricsDashboard games={library.games} filteredGames={filters.filteredGames} />
+            <MetricsDashboard games={library.games} scopedGames={filters.scopedGames} filteredGames={filters.filteredGames} />
           </div>
         )}
       </section>
-    </>
+
+      <GameDetailsDialog game={detailsGame} onOpenChange={(open) => !open && setDetailsAppId(null)} />
+      <KeyboardShortcuts open={showShortcuts} onOpenChange={setShowShortcuts} />
+    </GameActionsProvider>
   );
 }

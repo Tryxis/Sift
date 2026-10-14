@@ -1,6 +1,7 @@
 import { useMemo } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { STATUSES, STATUS_META } from "@/lib/status";
+import { LibraryInsights } from "./LibraryInsights";
 
 function hoursPlayed(game) {
   return game.playtimeForeverMinutes / 60;
@@ -63,7 +64,7 @@ function SectionTitle({ title, detail }) {
   );
 }
 
-export function MetricsDashboard({ games, filteredGames }) {
+export function MetricsDashboard({ games, scopedGames, filteredGames }) {
   const metrics = useMemo(() => {
     const summarize = (items) => {
       const statusCounts = Object.fromEntries(STATUSES.map((status) => [status, 0]));
@@ -81,6 +82,7 @@ export function MetricsDashboard({ games, filteredGames }) {
 
       return {
         statusCounts,
+        count: items.length,
         playedHours,
         finishedHours,
         finishedHoursGameCount: finishedHoursGames.length,
@@ -115,6 +117,7 @@ export function MetricsDashboard({ games, filteredGames }) {
 
     return {
       library: summarize(games),
+      scoped: summarize(scopedGames),
       filtered: summarize(filteredGames),
       dnf: {
         total: games.filter((game) => game.status === "Abandoned").length,
@@ -128,10 +131,10 @@ export function MetricsDashboard({ games, filteredGames }) {
         breakdown: dnf,
       },
     };
-  }, [games, filteredGames]);
+  }, [games, scopedGames, filteredGames]);
 
   const rows = [
-    ["Games in library", metrics.library, metrics.filtered, (m) => m.statusCounts.Backlog + m.withVerdict],
+    ["Games", metrics.library, metrics.filtered, (m) => m.count],
     ["Games with a verdict", metrics.library, metrics.filtered, (m) => m.withVerdict],
     ...STATUSES.filter((status) => status !== "Backlog").map((status) => [
       status,
@@ -150,27 +153,27 @@ export function MetricsDashboard({ games, filteredGames }) {
       <div>
         <SectionTitle
           title="Metrics"
-          detail="Headline statistics follow the current filters. Abandonment analysis covers the full library."
+          detail="Headline figures follow your search and range filters; the status filter only affects the Filtered column below. Abandonment analysis and the insights below cover the full library."
         />
-        <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-          <Stat label="Games in view" value={metrics.filtered.statusCounts.Backlog + metrics.filtered.withVerdict} />
-          <Stat label="Completed" value={metrics.filtered.statusCounts.Completed} detail={formatPercent(metrics.filtered.completion)} />
-          <Stat label="Playing" value={metrics.filtered.statusCounts.Playing} />
+        <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
+          <Stat label="Games" value={metrics.scoped.count} />
+          <Stat label="Completed" value={metrics.scoped.statusCounts.Completed} detail={formatPercent(metrics.scoped.completion)} />
+          <Stat label="Playing" value={metrics.scoped.statusCounts.Playing} />
           <Stat
             label="Hours played"
-            value={formatHours(metrics.filtered.playedHours)}
-            detail={`${formatHours(metrics.filtered.expectedHours)} HLTB estimated`}
+            value={formatHours(metrics.scoped.playedHours)}
+            detail={`${formatHours(metrics.scoped.expectedHours)} HLTB estimated`}
           />
-          <Stat label="DNF" value={metrics.filtered.statusCounts.Abandoned} />
-          <Stat label="Technical problem" value={metrics.filtered.statusCounts.Problem} />
+          <Stat label="DNF" value={metrics.scoped.statusCounts.Abandoned} />
+          <Stat label="Technical problem" value={metrics.scoped.statusCounts.Problem} />
           <Stat
             label="Finished hours"
-            value={formatHours(metrics.filtered.finishedHours)}
-            detail={`Recorded for ${metrics.filtered.finishedHoursGameCount} games in view`}
+            value={formatHours(metrics.scoped.finishedHours)}
+            detail={`Recorded for ${metrics.scoped.finishedHoursGameCount} games`}
           />
           <Stat
             label="No HLTB estimate"
-            value={metrics.filtered.noEstimateCount}
+            value={metrics.scoped.noEstimateCount}
           />
         </div>
       </div>
@@ -233,7 +236,7 @@ export function MetricsDashboard({ games, filteredGames }) {
         </div>
       </div>
 
-      <div className="grid gap-6 lg:grid-cols-2">
+      <div>
         <div>
           <SectionTitle title="DNF breakdown" detail="Sorted by the share of the HLTB main-story estimate completed before stopping." />
           <div className="max-h-80 overflow-auto rounded-card border border-border bg-card px-4">
@@ -264,6 +267,8 @@ export function MetricsDashboard({ games, filteredGames }) {
           </div>
         </div>
       </div>
+
+      <LibraryInsights games={games} />
 
       <div className="flex flex-wrap gap-3 text-xs text-muted-foreground" aria-label="Status key">
         {STATUSES.map((status) => (
