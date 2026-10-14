@@ -36,6 +36,7 @@ public sealed partial class AppDetailsService(
     private const int MaxReleaseDateLength = 64;
     private const int MaxMetacriticUrlLength = 512;
     private const int MaxShortDescriptionLength = 2000;
+    private const int MaxStoreTypeLength = 32;
 
     private static readonly HashSet<string> MultiplayerCategories = new(StringComparer.OrdinalIgnoreCase)
     {
@@ -166,6 +167,7 @@ public sealed partial class AppDetailsService(
         }
         else
         {
+            row.StoreType = fetched.StoreType;
             row.Genres = fetched.Genres;
             row.Categories = fetched.Categories;
             row.Developers = fetched.Developers;
@@ -197,6 +199,7 @@ public sealed partial class AppDetailsService(
         return new StoredAppDetails
         {
             AppId = appId,
+            StoreType = Truncate(string.IsNullOrWhiteSpace(details?.Type) ? null : details.Type.Trim().ToLowerInvariant(), MaxStoreTypeLength),
             ShortDescription = Truncate(description, MaxShortDescriptionLength),
             Genres = Descriptions(details?.Genres),
             Categories = categories,

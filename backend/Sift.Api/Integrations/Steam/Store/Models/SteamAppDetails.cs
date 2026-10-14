@@ -14,6 +14,10 @@ public sealed class SteamAppDetailsEnvelope
 
 public sealed class SteamAppDetails
 {
+    /// <summary>"game", "demo", "dlc", "music", "video", "mod", ... Software is also reported as "game".</summary>
+    [JsonPropertyName("type")]
+    public string? Type { get; init; }
+
     [JsonPropertyName("short_description")]
     public string? ShortDescription { get; init; }
 

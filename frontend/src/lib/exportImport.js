@@ -1,4 +1,4 @@
-import { STATUSES } from "./status";
+import { STATUSES, STATUS_META } from "./status";
 
 const CSV_COLUMNS = [
   ["appId", (g) => g.appId],
@@ -102,7 +102,9 @@ function parseBoolean(value) {
   return undefined;
 }
 
-const STATUS_BY_NAME = Object.fromEntries(STATUSES.map((status) => [status.toLowerCase(), status]));
+const STATUS_BY_NAME = Object.fromEntries(
+  STATUSES.flatMap((status) => [[status.toLowerCase(), status], [STATUS_META[status].label.toLowerCase(), status]])
+);
 
 /** Reads a Sift JSON export or a CSV (e.g. a spreadsheet you kept before Sift) into plain rows. */
 export async function readImportFile(file) {

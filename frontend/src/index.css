@@ -11,7 +11,7 @@
   Bulkhead  #2c303b  chip / pill borders
   Starlight #e9ecf2  text
   Dust      #8b93a3  secondary text
-  Status: Steel #7d889b, Plasma Blue #4d8dff, Aurora Mint #4fdcaa, Plasma Red #ff5a78, Problem Peach #f4a261
+  Status: Steel #7d889b, Plasma Blue #4d8dff, Aurora Mint #4fdcaa, Sky #38c9ff, Plasma Red #ff5a78, Problem Peach #f4a261, Slate #4a5160
 */
 @layer base {
   :root {
@@ -34,6 +34,7 @@
     --status-completed-before: 194 100% 61%;
     --status-abandoned: 349 100% 68%;
     --status-problem: 28 86% 67%;
+    --status-na: 220 13% 33%;
 
     color-scheme: dark;
   }

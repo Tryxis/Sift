@@ -57,7 +57,7 @@ public sealed class BacklogService(AppDbContext db, TimeProvider timeProvider) :
             .FirstOrDefaultAsync(r => r.AppId == appId, cancellationToken);
         var details = await db.AppDetails.AsNoTracking()
             .Where(d => d.AppId == appId)
-            .Select(d => new AppDetailsSummary(d.AppId, d.Genres, d.ReleaseYear, d.DeckCompatibility, d.IsMultiplayer))
+            .Select(d => new AppDetailsSummary(d.AppId, d.Genres, d.ReleaseYear, d.DeckCompatibility, d.IsMultiplayer, d.StoreType))
             .FirstOrDefaultAsync(cancellationToken);
         var achievements = await db.AchievementProgress.AsNoTracking()
             .FirstOrDefaultAsync(a => a.SteamId == steamId && a.AppId == appId, cancellationToken);

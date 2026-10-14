@@ -202,7 +202,7 @@ function DetailsBody({ game }) {
               <span className="text-xs text-muted-foreground">
                 Status{game.statusChangedUtc ? ` · since ${formatDate(game.statusChangedUtc)}` : ""}
               </span>
-              <StatusPicker variant="boxed" status={game.status} playedBefore={game.playedBefore} onChange={handleStatusChange} gameName={game.name} />
+              <StatusPicker variant="boxed" status={game.status} onChange={handleStatusChange} gameName={game.name} />
             </div>
             <div className="space-y-1">
               <span className="text-xs text-muted-foreground">Played before</span>

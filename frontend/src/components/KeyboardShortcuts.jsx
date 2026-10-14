@@ -1,12 +1,12 @@
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/components/ui/dialog";
-import { STATUSES } from "@/lib/status";
+import { STATUSES, STATUS_META } from "@/lib/status";
 
 export const SHORTCUTS = [
   ["/", "Search games"],
   ["[  ]", "Previous / next tab"],
   ["g  t  l", "Cards, table or list layout"],
   ["n  p", "Next / previous page"],
-  [`1–${STATUSES.length}`, `Set status of the focused game (${STATUSES.join(", ")})`],
+  [`1–${STATUSES.length}`, `Set status of the focused game (${STATUSES.map((status) => STATUS_META[status].label).join(", ")})`],
   ["d", "Open details for the focused game"],
   ["Esc", "Close a panel or clear the search"],
   ["?", "Show this list"],

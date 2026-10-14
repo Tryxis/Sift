@@ -2,6 +2,7 @@ using Sift.Api.Contracts.Responses;
 using Sift.Api.Domain.Entities;
 using Sift.Api.Domain.Enums;
 using Sift.Api.Integrations.Steam;
+using Sift.Api.Services;
 using Sift.Api.Services.Results;
 
 namespace Sift.Api.Mapping;
@@ -59,6 +60,7 @@ public static class LibraryMappingExtensions
             details?.DeckCompatibility,
             details?.IsMultiplayer,
             hasAchievements ? achievements!.Unlocked : null,
-            hasAchievements ? achievements!.Total : null);
+            hasAchievements ? achievements!.Total : null,
+            AppKindClassifier.Classify(owned.App.Name, details?.StoreType, details?.Genres));
     }
 }

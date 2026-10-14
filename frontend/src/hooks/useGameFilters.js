@@ -1,5 +1,5 @@
 import { useCallback, useMemo, useState } from "react";
-import { COMPLETED_BEFORE_FILTER, STATUSES } from "@/lib/status";
+import { LEGACY_COMPLETED_BEFORE, STATUSES } from "@/lib/status";
 import { hasBound, matchesFilters } from "@/lib/filters";
 import { progressPercent, valueScore } from "@/lib/gameMath";
 
@@ -72,8 +72,8 @@ export function configurationKey(configuration) {
     .sort(([a], [b]) => a.localeCompare(b))
     .map(([id, b]) => [id, `${b.min ?? ""}`, `${b.max ?? ""}`]);
   return JSON.stringify([
-    [...(c.selectedStatuses ?? [])].sort(),
-    [...(c.excludedStatuses ?? [])].sort(),
+    upgradeStatuses(c.selectedStatuses).sort(),
+    upgradeStatuses(c.excludedStatuses).sort(),
     filters,
     c.playedBefore ?? null,
     c.hasNotes ?? null,
@@ -87,14 +87,13 @@ export function configurationKey(configuration) {
   ]);
 }
 
-function matchesStatusOption(game, option) {
-  return option === COMPLETED_BEFORE_FILTER ? game.status === "Completed" && game.playedBefore : game.status === option;
+function matchesStatus(game, selectedStatuses, excludedStatuses) {
+  if (excludedStatuses.includes(game.status)) return false;
+  return selectedStatuses.length === 0 || selectedStatuses.includes(game.status);
 }
 
-function matchesStatus(game, selectedStatuses, excludedStatuses) {
-  if (excludedStatuses.some((option) => matchesStatusOption(game, option))) return false;
-  return selectedStatuses.length === 0 || selectedStatuses.some((option) => matchesStatusOption(game, option));
-}
+/** Older saved views name the old "Completed before" filter; it's the CompletedBefore status now. */
+const upgradeStatuses = (statuses) => [...new Set((statuses ?? []).map((status) => (status === LEGACY_COMPLETED_BEFORE ? "CompletedBefore" : status)))];
 
 /**
  * All client-side list shaping: status selection, granular filters, sorting and pagination.
@@ -139,12 +138,10 @@ export function useGameFilters(games) {
 
   const statusCounts = useMemo(() => {
     const counts = Object.fromEntries(STATUSES.map((s) => [s, 0]));
-    let completedBefore = 0;
     scopedGames.forEach((g) => {
       counts[g.status] = (counts[g.status] ?? 0) + 1;
-      if (g.status === "Completed" && g.playedBefore) completedBefore += 1;
     });
-    return { All: scopedGames.length, ...counts, [COMPLETED_BEFORE_FILTER]: completedBefore };
+    return { All: scopedGames.length, ...counts };
   }, [scopedGames]);
 
   const filtered = useMemo(() => {
@@ -181,8 +178,8 @@ export function useGameFilters(games) {
 
   const applyConfiguration = useCallback((configuration) => {
     const c = { ...DEFAULT_CONFIGURATION, ...configuration };
-    setSelectedStatuses(c.selectedStatuses ?? []);
-    setExcludedStatuses(c.excludedStatuses ?? []);
+    setSelectedStatuses(upgradeStatuses(c.selectedStatuses));
+    setExcludedStatuses(upgradeStatuses(c.excludedStatuses));
     setActiveFilters(c.activeFilters ?? {});
     setPlayedBeforeState(c.playedBefore ?? null);
     setHasNotesState(c.hasNotes ?? null);

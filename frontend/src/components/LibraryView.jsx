@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Search, X, LayoutGrid, List, Rows3, SlidersHorizontal, Sparkles } from "lucide-react";
+import { AppWindow, Search, X, LayoutGrid, List, Rows3, SlidersHorizontal, Sparkles } from "lucide-react";
 import { configurationKey, createFilterConfiguration, useGameFilters } from "@/hooks/useGameFilters";
 import { inversePatch } from "@/hooks/useLibrary";
 import { useKeyboardShortcuts } from "@/hooks/useKeyboardShortcuts";
@@ -9,7 +9,7 @@ import { useToast } from "@/components/ui/toast";
 import { queueOf } from "@/lib/queue";
 import { readViewFromUrl, writeViewToUrl } from "@/lib/viewUrl";
 import { PRESET_VIEWS } from "@/lib/presets";
-import { STATUSES, STATUS_META } from "@/lib/status";
+import { STATUSES, STATUS_META, isCountable } from "@/lib/status";
 import { cn } from "@/lib/utils";
 import { ActivityTab } from "./ActivityTab";
 import { BulkActionsBar } from "./BulkActionsBar";
@@ -141,6 +141,48 @@ function NewGamesBanner({ games, onOpen, onDismiss }) {
   );
 }
 
+const KIND_LABELS = { Software: "software", Demo: "demos", Other: "DLC, soundtracks or videos" };
+const DISMISSED_NON_GAMES_KEY = "sift:dismissed-non-games";
+
+function readDismissedNonGames() {
+  try {
+    return new Set(JSON.parse(localStorage.getItem(DISMISSED_NON_GAMES_KEY) ?? "[]"));
+  } catch {
+    return new Set();
+  }
+}
+
+/** Offers to mark Backlog apps that Steam's store data says aren't games (software, demos, ...) as Other. */
+function NonGamesBanner({ games, onOpen, onMarkNotApplicable, onDismiss }) {
+  if (!games.length) return null;
+  const shown = games.slice(0, 4);
+  const kinds = [...new Set(games.map((game) => KIND_LABELS[game.kind]))];
+  return (
+    <div className="mb-5 flex items-start gap-3 rounded-card border border-border-strong bg-card px-4 py-3 text-sm">
+      <AppWindow className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground" aria-hidden="true" />
+      <div className="min-w-0 flex-1">
+        <p>
+          {games.length === 1 ? "1 item in your backlog looks" : `${games.length} items in your backlog look`} like{" "}
+          {kinds.join(" or ")} rather than games:{" "}
+          {shown.map((game, index) => (
+            <span key={game.appId}>
+              <button type="button" className="underline-offset-2 hover:underline" onClick={() => onOpen(game.appId)}>{game.name}</button>
+              {index < shown.length - 1 ? ", " : ""}
+            </span>
+          ))}
+          {games.length > shown.length && ` and ${games.length - shown.length} more`}.
+        </p>
+        <Button variant="outline" size="sm" className="mt-2" onClick={onMarkNotApplicable}>
+          Mark {games.length === 1 ? "it" : `all ${games.length}`} as Other
+        </Button>
+      </div>
+      <button type="button" onClick={onDismiss} aria-label="Dismiss" className="text-muted-foreground hover:text-foreground">
+        <X className="h-4 w-4" />
+      </button>
+    </div>
+  );
+}
+
 export function LibraryView({ library, newAppIds, isSyncing, onResync, onUpdateGame, onUpdateGames }) {
   const toast = useToast();
   const [urlView] = useState(readViewFromUrl);
@@ -155,6 +197,7 @@ export function LibraryView({ library, newAppIds, isSyncing, onResync, onUpdateG
   const [showShortcuts, setShowShortcuts] = useState(false);
   const [selectedIds, setSelectedIds] = useState(() => new Set());
   const [newBannerDismissed, setNewBannerDismissed] = useState(false);
+  const [dismissedNonGames, setDismissedNonGames] = useState(readDismissedNonGames);
 
   // A shared link's filters win over the remembered saved view.
   const { applyConfiguration } = filters;
@@ -345,12 +388,33 @@ export function LibraryView({ library, newAppIds, isSyncing, onResync, onUpdateG
     () => [...new Set(library.games.flatMap((game) => game.genres ?? []))].sort((a, b) => a.localeCompare(b)),
     [library.games]
   );
+  // Games marked Other (software, launchers, demos) are kept out of every stat and insight.
+  const countedGames = useMemo(() => library.games.filter(isCountable), [library.games]);
+  const countedScopedGames = useMemo(() => filters.scopedGames.filter(isCountable), [filters.scopedGames]);
   const newGames = useMemo(() => library.games.filter((game) => newAppIds.has(game.appId)), [library.games, newAppIds]);
+  const nonGames = useMemo(
+    () => library.games.filter((game) => game.kind && game.kind !== "Game" && game.status === "Backlog" && !dismissedNonGames.has(game.appId)),
+    [library.games, dismissedNonGames]
+  );
+  const dismissNonGames = () => {
+    const next = new Set([...dismissedNonGames, ...nonGames.map((game) => game.appId)]);
+    setDismissedNonGames(next);
+    try {
+      localStorage.setItem(DISMISSED_NON_GAMES_KEY, JSON.stringify([...next]));
+    } catch {
+      // Not remembered across visits; the banner just comes back.
+    }
+  };
+  const markNonGamesNotApplicable = () =>
+    updateGamesWithUndo(
+      nonGames.map((game) => ({ appId: game.appId, patch: { status: "NotApplicable" } })),
+      `${nonGames.length} ${nonGames.length === 1 ? "item" : "items"} → Other`
+    );
 
   return (
     <GameActionsProvider value={actions}>
       <ProfileSummary
-        profile={library.profile}
+        profile={{ ...library.profile, gameCount: countedGames.length }}
         onResync={onResync}
         isSyncing={isSyncing}
         actions={
@@ -362,6 +426,7 @@ export function LibraryView({ library, newAppIds, isSyncing, onResync, onUpdateG
         }
       />
       {!newBannerDismissed && <NewGamesBanner games={newGames} onOpen={setDetailsAppId} onDismiss={() => setNewBannerDismissed(true)} />}
+      <NonGamesBanner games={nonGames} onOpen={setDetailsAppId} onMarkNotApplicable={markNonGamesNotApplicable} onDismiss={dismissNonGames} />
 
       <section className="relative z-10">
         <div
@@ -393,9 +458,9 @@ export function LibraryView({ library, newAppIds, isSyncing, onResync, onUpdateG
 
         {activeTab === "library" && (
           <StatsPanel
-            games={filters.scopedGames}
-            libraryCount={library.games.length}
-            inViewCount={filters.filteredCount}
+            games={countedScopedGames}
+            libraryCount={countedGames.length}
+            inViewCount={filters.filteredGames.filter(isCountable).length}
             selectedStatuses={filters.selectedStatuses}
             onToggleStatus={filters.toggleStatus}
             isScoped={filters.scopeFilterCount > 0}
@@ -559,17 +624,17 @@ export function LibraryView({ library, newAppIds, isSyncing, onResync, onUpdateG
         )}
         {activeTab === "play-next" && (
           <div id="view-panel-play-next" role="tabpanel" aria-labelledby="view-tab-play-next">
-            <PlayNext games={filters.scopedGames} allGames={library.games} />
+            <PlayNext games={countedScopedGames} allGames={library.games} />
           </div>
         )}
         {activeTab === "activity" && (
           <div id="view-panel-activity" role="tabpanel" aria-labelledby="view-tab-activity">
-            <ActivityTab games={library.games} />
+            <ActivityTab games={countedGames} />
           </div>
         )}
         {activeTab === "history" && (
           <div id="view-panel-history" role="tabpanel" aria-labelledby="view-tab-history">
-            <HistoryTab steamId={library.profile.steamId} games={library.games} />
+            <HistoryTab steamId={library.profile.steamId} games={countedGames} />
           </div>
         )}
         {activeTab === "wishlist" && (
@@ -579,12 +644,12 @@ export function LibraryView({ library, newAppIds, isSyncing, onResync, onUpdateG
         )}
         {activeTab === "compare" && (
           <div id="view-panel-compare" role="tabpanel" aria-labelledby="view-tab-compare">
-            <CompareTab profile={library.profile} games={library.games} />
+            <CompareTab profile={library.profile} games={countedGames} />
           </div>
         )}
         {activeTab === "metrics" && (
           <div id="view-panel-metrics" role="tabpanel" aria-labelledby="view-tab-metrics">
-            <MetricsDashboard games={library.games} scopedGames={filters.scopedGames} filteredGames={filters.filteredGames} />
+            <MetricsDashboard games={countedGames} scopedGames={countedScopedGames} filteredGames={filters.filteredGames.filter(isCountable)} />
           </div>
         )}
       </section>

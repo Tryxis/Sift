@@ -1,6 +1,6 @@
 import { useMemo } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { STATUSES, STATUS_META } from "@/lib/status";
+import { STAT_STATUSES, STATUS_META, isFinished } from "@/lib/status";
 import { LibraryInsights } from "./LibraryInsights";
 
 function hoursPlayed(game) {
@@ -67,7 +67,7 @@ function SectionTitle({ title, detail }) {
 export function MetricsDashboard({ games, scopedGames, filteredGames }) {
   const metrics = useMemo(() => {
     const summarize = (items) => {
-      const statusCounts = Object.fromEntries(STATUSES.map((status) => [status, 0]));
+      const statusCounts = Object.fromEntries(STAT_STATUSES.map((status) => [status, 0]));
       items.forEach((game) => {
         statusCounts[game.status] = (statusCounts[game.status] ?? 0) + 1;
       });
@@ -77,7 +77,7 @@ export function MetricsDashboard({ games, scopedGames, filteredGames }) {
       const estimates = items.map(expectedHours).filter((value) => value != null);
       const expected = sum(estimates);
       const noEstimateCount = items.length - estimates.length;
-      const completed = statusCounts.Completed;
+      const completed = items.filter(isFinished).length;
       const withVerdict = items.length - statusCounts.Backlog;
 
       return {
@@ -136,8 +136,8 @@ export function MetricsDashboard({ games, scopedGames, filteredGames }) {
   const rows = [
     ["Games", metrics.library, metrics.filtered, (m) => m.count],
     ["Games with a verdict", metrics.library, metrics.filtered, (m) => m.withVerdict],
-    ...STATUSES.filter((status) => status !== "Backlog").map((status) => [
-      status,
+    ...STAT_STATUSES.filter((status) => status !== "Backlog").map((status) => [
+      STATUS_META[status].label,
       metrics.library,
       metrics.filtered,
       (m) => m.statusCounts[status],
@@ -157,7 +157,7 @@ export function MetricsDashboard({ games, scopedGames, filteredGames }) {
         />
         <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
           <Stat label="Games" value={metrics.scoped.count} />
-          <Stat label="Completed" value={metrics.scoped.statusCounts.Completed} detail={formatPercent(metrics.scoped.completion)} />
+          <Stat label="Completed" value={metrics.scoped.completed} detail={formatPercent(metrics.scoped.completion)} />
           <Stat label="Playing" value={metrics.scoped.statusCounts.Playing} />
           <Stat
             label="Hours played"
@@ -271,7 +271,7 @@ export function MetricsDashboard({ games, scopedGames, filteredGames }) {
       <LibraryInsights games={games} />
 
       <div className="flex flex-wrap gap-3 text-xs text-muted-foreground" aria-label="Status key">
-        {STATUSES.map((status) => (
+        {STAT_STATUSES.map((status) => (
           <span key={status} className="flex items-center gap-1.5">
             <span className={`h-2 w-2 rounded-full ${STATUS_META[status].dotClass}`} />
             {STATUS_META[status].label}

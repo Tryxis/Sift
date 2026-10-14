@@ -31,4 +31,5 @@ public sealed record LibraryGameResponse(
     SteamDeckCompatibility? DeckCompatibility,
     bool? IsMultiplayer,
     int? AchievementsUnlocked,
-    int? AchievementsTotal);
+    int? AchievementsTotal,
+    AppKind Kind);

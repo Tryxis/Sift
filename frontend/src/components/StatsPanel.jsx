@@ -1,6 +1,6 @@
 import { useMemo } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { COMPLETED_BEFORE_FILTER, STATUSES, STATUS_META } from "@/lib/status";
+import { STAT_STATUSES, STATUS_META, isFinished } from "@/lib/status";
 import { hoursLeftToBeat, totalHours } from "@/lib/format";
 import { cn } from "@/lib/utils";
 
@@ -58,8 +58,8 @@ function Donut({ segments, total, isHighlighted, children }) {
 
 export function StatsPanel({ games, libraryCount, inViewCount, selectedStatuses, onToggleStatus, isScoped, className = "" }) {
   const stats = useMemo(() => {
-    const counts = STATUSES.map((s) => ({ status: s, count: games.filter((g) => g.status === s).length }));
-    const completed = counts.find((c) => c.status === "Completed").count;
+    const counts = STAT_STATUSES.map((s) => ({ status: s, count: games.filter((g) => g.status === s).length }));
+    const completed = games.filter(isFinished).length;
     const played = games.filter((g) => g.playtimeForeverMinutes > 0).length;
     return {
       counts,
@@ -73,10 +73,7 @@ export function StatsPanel({ games, libraryCount, inViewCount, selectedStatuses,
   }, [games]);
 
   const hasSelection = selectedStatuses.length > 0;
-  const isHighlighted = (status) =>
-    !hasSelection ||
-    selectedStatuses.includes(status) ||
-    (status === "Completed" && selectedStatuses.includes(COMPLETED_BEFORE_FILTER));
+  const isHighlighted = (status) => !hasSelection || selectedStatuses.includes(status);
 
   const scopeLabel = isScoped ? `${games.length.toLocaleString()} of ${libraryCount.toLocaleString()} games match your filters` : "Whole library";
 
@@ -107,7 +104,7 @@ export function StatsPanel({ games, libraryCount, inViewCount, selectedStatuses,
                       type="button"
                       aria-pressed={selected}
                       onClick={() => onToggleStatus(status)}
-                      title={selected ? `Stop filtering by ${status}` : `Show only ${status}`}
+                      title={selected ? `Stop filtering by ${STATUS_META[status].label}` : `Show only ${STATUS_META[status].label}`}
                       className={cn(
                         "-mx-2 flex w-[calc(100%+1rem)] items-center justify-between gap-3 rounded-md px-2 py-0.5 text-left transition-colors hover:bg-muted",
                         hasSelection && !isHighlighted(status) && "text-muted-foreground"

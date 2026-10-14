@@ -2,6 +2,7 @@ using System.Globalization;
 using Microsoft.EntityFrameworkCore;
 using Sift.Api.Contracts.Responses;
 using Sift.Api.Data;
+using Sift.Api.Domain.Enums;
 using Sift.Api.Exceptions;
 using Sift.Api.Services.Interfaces;
 
@@ -41,9 +42,13 @@ public sealed class ProfileHistoryService(AppDbContext db, TimeProvider timeProv
         var rangeStart = new DateOnly(today.Year, today.Month, 1).AddMonths(-(months - 1));
 
         // Every snapshot in range, plus each game's last snapshot before it (its carried-in baseline).
+        // Apps marked NotApplicable ("Other": software, launchers, demos) don't count as playtime.
         var snapshots = await db.PlaytimeSnapshots
             .AsNoTracking()
             .Where(s => s.SteamId == steamId
+                        && !db.BacklogEntries.Any(e => e.SteamId == s.SteamId
+                                                       && e.AppId == s.AppId
+                                                       && e.Status == BacklogStatus.NotApplicable)
                         && (s.CapturedOn >= rangeStart
                             || !db.PlaytimeSnapshots.Any(later => later.SteamId == s.SteamId
                                                                   && later.AppId == s.AppId

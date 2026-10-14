@@ -46,7 +46,7 @@ public sealed class LibraryQueryService(AppDbContext db) : ILibraryQueryService
         var details = await db.AppDetails
             .AsNoTracking()
             .Where(d => appIds.Contains(d.AppId))
-            .Select(d => new AppDetailsSummary(d.AppId, d.Genres, d.ReleaseYear, d.DeckCompatibility, d.IsMultiplayer))
+            .Select(d => new AppDetailsSummary(d.AppId, d.Genres, d.ReleaseYear, d.DeckCompatibility, d.IsMultiplayer, d.StoreType))
             .ToDictionaryAsync(d => d.AppId, cancellationToken);
 
         var achievements = await db.AchievementProgress

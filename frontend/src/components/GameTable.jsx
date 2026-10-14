@@ -54,7 +54,7 @@ function Checkbox({ checked, indeterminate = false, onChange, label }) {
 }
 
 function GameTableRow({ game, onUpdateGame, selected, onSelectedChange }) {
-  const status = getStatusMeta(game.status, game.playedBefore);
+  const status = getStatusMeta(game.status);
   const { openDetails, newAppIds } = useGameActions();
   const { handleStatusChange, statusChangePrompt } = useGameStatusChange(game, onUpdateGame);
   const rowBackground = selected ? "bg-[hsl(219_40%_14%)]" : "bg-card group-hover:bg-[hsl(217_22%_11%)]";
@@ -72,7 +72,7 @@ function GameTableRow({ game, onUpdateGame, selected, onSelectedChange }) {
       </th>
       <td className="whitespace-nowrap px-3 py-2.5 sm:px-4">
         <span className="inline-flex items-center gap-1.5">
-          <StatusPicker status={game.status} playedBefore={game.playedBefore} onChange={handleStatusChange} gameName={game.name} />
+          <StatusPicker status={game.status} onChange={handleStatusChange} gameName={game.name} />
           <span className={`text-xs ${status.textClass}`}>{status.label}</span>
         </span>
         {statusChangePrompt}

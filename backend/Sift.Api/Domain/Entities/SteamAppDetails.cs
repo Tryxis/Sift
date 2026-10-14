@@ -11,6 +11,9 @@ public class SteamAppDetails
 {
     public int AppId { get; set; }
 
+    /// <summary>Steam's appdetails "type", e.g. "game", "demo", "dlc" or "music"; null when there's no store page.</summary>
+    public string? StoreType { get; set; }
+
     public string[] Genres { get; set; } = [];
     public string[] Categories { get; set; } = [];
     public string[] Developers { get; set; } = [];

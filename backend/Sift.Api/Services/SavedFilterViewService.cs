@@ -14,7 +14,8 @@ public sealed class SavedFilterViewService(AppDbContext db, TimeProvider timePro
 {
     private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web);
     private static readonly HashSet<string> AllowedStatuses =
-        ["Backlog", "Playing", "Completed", "Abandoned", "Problem", "Completed before"];
+        // "Completed before" is the pre-status filter name, still found in older saved views.
+        ["Backlog", "Playing", "Completed", "CompletedBefore", "Abandoned", "Problem", "NotApplicable", "Completed before"];
     private static readonly HashSet<string> AllowedFilters =
     [
         "hours", "timeToBeat", "reviewScore", "finishedHours",

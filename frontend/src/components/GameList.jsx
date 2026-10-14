@@ -11,7 +11,7 @@ import { useGameStatusChange } from "@/hooks/useGameStatusChange";
 function GameListRow({ game, onUpdateGame, isNew, queuePosition }) {
   const { openDetails } = useGameActions();
   const { handleStatusChange, statusChangePrompt } = useGameStatusChange(game, onUpdateGame);
-  const status = getStatusMeta(game.status, game.playedBefore);
+  const status = getStatusMeta(game.status);
   const progress = progressPercent(game);
 
   return (
@@ -53,7 +53,7 @@ function GameListRow({ game, onUpdateGame, isNew, queuePosition }) {
       </div>
       <div className="flex shrink-0 items-center gap-1.5">
         <span className={`hidden text-xs sm:inline ${status.textClass}`}>{status.label}</span>
-        <StatusPicker status={game.status} playedBefore={game.playedBefore} onChange={handleStatusChange} gameName={game.name} />
+        <StatusPicker status={game.status} onChange={handleStatusChange} gameName={game.name} />
       </div>
       {statusChangePrompt}
     </li>

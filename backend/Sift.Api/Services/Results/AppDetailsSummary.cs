@@ -8,4 +8,5 @@ public sealed record AppDetailsSummary(
     string[] Genres,
     int? ReleaseYear,
     SteamDeckCompatibility DeckCompatibility,
-    bool IsMultiplayer);
+    bool IsMultiplayer,
+    string? StoreType);

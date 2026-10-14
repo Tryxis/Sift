@@ -1,7 +1,8 @@
 import { cn } from "@/lib/utils";
-import { COMPLETED_BEFORE_FILTER, STATUSES, STATUS_META } from "@/lib/status";
+import { STATUSES, STATUS_META } from "@/lib/status";
 
-const OPTIONS = ["All", ...STATUSES, COMPLETED_BEFORE_FILTER];
+const OPTIONS = ["All", ...STATUSES];
+const label = (option) => STATUS_META[option]?.label ?? option;
 
 function chipState(option, selectedStatuses, excludedStatuses) {
   if (option === "All") return selectedStatuses.length === 0 && excludedStatuses.length === 0 ? "on" : "off";
@@ -34,7 +35,7 @@ export function StatusFilter({ selectedStatuses, excludedStatuses, counts, onCyc
             key={option}
             type="button"
             aria-pressed={state === "excluded" ? "mixed" : state === "on"}
-            title={option === "All" ? "Show every status" : HINTS[state](option)}
+            title={option === "All" ? "Show every status" : HINTS[state](label(option))}
             onClick={() => (option === "All" ? onClear() : onCycle(option))}
             className={cn(
               "flex h-9 shrink-0 items-center gap-2 whitespace-nowrap rounded-full border px-3 text-[13px] transition-colors sm:h-8 sm:px-3.5",
@@ -44,7 +45,7 @@ export function StatusFilter({ selectedStatuses, excludedStatuses, counts, onCyc
             )}
           >
             {option !== "All" && <span className={cn("h-1.5 w-1.5 rounded-full", STATUS_META[option].dotClass, state === "excluded" && "opacity-40")} />}
-            {state === "excluded" ? `Not ${option.toLowerCase()}` : option}
+            {state === "excluded" ? `Not ${label(option)}` : label(option)}
             <span className="tabular-nums text-muted-foreground">{counts[option] ?? 0}</span>
           </button>
         );

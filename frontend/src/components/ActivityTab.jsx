@@ -34,7 +34,7 @@ function SectionHeading({ title, detail }) {
 
 function GameName({ game }) {
   const { openDetails } = useGameActions();
-  const status = getStatusMeta(game.status, game.playedBefore);
+  const status = getStatusMeta(game.status);
   return (
     <button type="button" onClick={() => openDetails(game.appId)} className="flex min-w-0 items-center gap-2 text-left text-sm hover:underline">
       <span className={cn("h-2 w-2 shrink-0 rounded-full", status.dotClass)} title={status.label} />

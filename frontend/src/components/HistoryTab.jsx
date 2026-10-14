@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { ArrowRight, Copy, RefreshCw } from "lucide-react";
+import { ArrowRight, Copy, RefreshCw, ThumbsUp } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { useToast } from "@/components/ui/toast";
@@ -8,10 +8,12 @@ import { formatDate, formatHours } from "@/lib/format";
 import { STATUS_META } from "@/lib/status";
 import { cn } from "@/lib/utils";
 import { TimeSeriesChart } from "./charts/TimeSeriesChart";
+import { GameCover } from "./GameCover";
 import { useGameActions } from "./GameActions";
 
 const MONTHS = 24;
 const TIMELINE_PAGE = 60;
+const FINISHED_SHOWN = 6;
 
 const monthKey = (date) => `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}`;
 const monthLabel = (key, withYear = false) => {
@@ -91,6 +93,72 @@ function StatusTag({ status }) {
   );
 }
 
+function FinishedCard({ event, game, hours }) {
+  const { openDetails } = useGameActions();
+  const finishedOn = new Date(event.changedUtc);
+  return (
+    <li>
+      <button
+        type="button"
+        onClick={() => openDetails(event.appId)}
+        className="group block w-full overflow-hidden rounded-card border border-border bg-abyss text-left transition-colors hover:border-border-strong focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+      >
+        <div className="relative">
+          <GameCover appId={event.appId} name={event.name} src={game?.headerImageUrl} className="rounded-none border-0" />
+          <span className="absolute left-2 top-2 rounded-full bg-background/80 px-2 py-0.5 text-[11px] font-medium backdrop-blur-sm">
+            {finishedOn.toLocaleDateString("en-GB", { day: "numeric", month: "short" })}
+          </span>
+        </div>
+        <div className="space-y-1 px-3 py-2">
+          <p className="truncate text-sm font-medium group-hover:underline" title={event.name}>{event.name}</p>
+          <p className="flex items-center justify-between gap-2 text-xs tabular-nums text-muted-foreground">
+            <span>{hours > 0 ? formatHours(hours * 60) : "No hours logged"}</span>
+            {game?.reviewScore != null && (
+              <span className="inline-flex items-center gap-1" title="Steam review score">
+                <ThumbsUp className="h-3 w-3" aria-hidden="true" />
+                {Math.round(game.reviewScore)}%
+              </span>
+            )}
+          </p>
+        </div>
+      </button>
+    </li>
+  );
+}
+
+function FinishedShelf({ year, finished, finishedHours }) {
+  const [showAll, setShowAll] = useState(false);
+  const sorted = useMemo(
+    () => [...finished].sort((a, b) => Date.parse(b.event.changedUtc) - Date.parse(a.event.changedUtc)),
+    [finished]
+  );
+  const shown = showAll ? sorted : sorted.slice(0, FINISHED_SHOWN);
+  return (
+    <div className="rounded-card border border-border bg-card p-4 lg:col-span-2">
+      <div className="mb-3 flex items-baseline justify-between gap-3">
+        <h3 className="text-sm font-medium text-muted-foreground">Finished in {year}</h3>
+        {finished.length > 0 && <span className="text-xs tabular-nums text-muted-foreground">Newest first</span>}
+      </div>
+      {finished.length ? (
+        <>
+          <ul className="grid grid-cols-2 gap-3 sm:grid-cols-3">
+            {shown.map((item) => (
+              <FinishedCard key={item.event.appId} event={item.event} game={item.game} hours={finishedHours(item)} />
+            ))}
+          </ul>
+          {sorted.length > FINISHED_SHOWN && (
+            <Button variant="ghost" size="sm" className="mt-3" onClick={() => setShowAll((value) => !value)}>
+              {showAll ? "Show fewer" : `Show all ${sorted.length}`}
+            </Button>
+          )}
+        </>
+      ) : (
+        <p className="text-sm text-muted-foreground">Nothing marked Completed in {year} yet.</p>
+      )}
+    </div>
+  );
+}
+
 function YearInReview({ year, years, onYearChange, events, monthly, games }) {
   const toast = useToast();
   const gamesById = useMemo(() => new Map(games.map((game) => [game.appId, game])), [games]);
@@ -105,12 +173,12 @@ function YearInReview({ year, years, onYearChange, events, monthly, games }) {
       entry.games.forEach((game) => perGame.set(game.appId, { ...game, minutes: (perGame.get(game.appId)?.minutes ?? 0) + game.minutes }))
     );
     const mostPlayed = [...perGame.values()].sort((a, b) => b.minutes - a.minutes).slice(0, 5);
-    const finishedHours = ({ game }) => game?.finishedHours ?? (game ? game.playtimeForeverMinutes / 60 : 0);
+    const finishedHours = ({ game }) => (game?.finishedHours != null ? Number(game.finishedHours) : game ? game.playtimeForeverMinutes / 60 : 0);
+    const finishedTotal = finished.reduce((sum, item) => sum + finishedHours(item), 0);
     const bestRated = finished.filter(({ game }) => game?.reviewScore != null).sort((a, b) => b.game.reviewScore - a.game.reviewScore)[0];
-    const longest = [...finished].sort((a, b) => finishedHours(b) - finishedHours(a))[0];
     const longestAbandon = [...abandoned].sort((a, b) => finishedHours(b) - finishedHours(a))[0];
     const firstTrackedMonth = months.find((entry) => entry.minutes > 0)?.month;
-    return { finished, abandoned, minutes, mostPlayed, bestRated, longest, longestAbandon, finishedHours, firstTrackedMonth };
+    return { finished, abandoned, minutes, mostPlayed, bestRated, longestAbandon, finishedHours, finishedTotal, firstTrackedMonth };
   }, [events, monthly, year, gamesById]);
 
   const copySummary = async () => {
@@ -118,6 +186,7 @@ function YearInReview({ year, years, onYearChange, events, monthly, games }) {
       `My ${year} in games (Sift)`,
       `Finished: ${review.finished.length}${review.finished.length ? ` (${review.finished.map(({ event }) => event.name).join(", ")})` : ""}`,
       `Abandoned: ${review.abandoned.length}`,
+      review.finished.length > 0 && `Hours to finish them: ${Math.round(review.finishedTotal).toLocaleString()}`,
       `Hours played: ${Math.round(review.minutes / 60).toLocaleString()}`,
       review.mostPlayed[0] && `Most played: ${review.mostPlayed[0].name} (${formatHours(review.mostPlayed[0].minutes)})`,
       review.bestRated && `Best-rated finish: ${review.bestRated.event.name}`,
@@ -134,7 +203,11 @@ function YearInReview({ year, years, onYearChange, events, monthly, games }) {
     <section>
       <SectionTitle
         title="Year in review"
-        detail={review.firstTrackedMonth && review.firstTrackedMonth !== `${year}-01` ? `Playtime tracked from ${monthLabel(review.firstTrackedMonth, true)}.` : undefined}
+        detail={
+          review.firstTrackedMonth && review.firstTrackedMonth !== `${year}-01`
+            ? `Hours played are tracked from ${monthLabel(review.firstTrackedMonth, true)}.`
+            : undefined
+        }
       >
         <div className="flex items-center gap-2">
           <label className="sr-only" htmlFor="review-year">Year</label>
@@ -154,13 +227,22 @@ function YearInReview({ year, years, onYearChange, events, monthly, games }) {
       </SectionTitle>
 
       <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
-        <Tile title="Finished" value={review.finished.length} detail={review.longest ? `Longest: ${review.longest.event.name}` : null} />
+        <Tile
+          title="Finished"
+          value={review.finished.length}
+          detail={review.finished.length ? `${Math.round(review.finishedTotal).toLocaleString()} hrs to finish them` : null}
+        />
         <Tile title="Abandoned" value={review.abandoned.length} detail={review.longestAbandon ? `Most sunk: ${review.longestAbandon.event.name}` : null} />
-        <Tile title="Hours played" value={Math.round(review.minutes / 60).toLocaleString()} detail={review.mostPlayed[0] ? `Top: ${review.mostPlayed[0].name}` : null} />
+        <Tile
+          title="Hours played"
+          value={Math.round(review.minutes / 60).toLocaleString()}
+          detail={review.mostPlayed[0] ? `Top: ${review.mostPlayed[0].name}` : "Counted from playtime gained between syncs"}
+        />
         <Tile title="Best-rated finish" value={review.bestRated ? `${Math.round(review.bestRated.game.reviewScore)}%` : "—"} detail={review.bestRated?.event.name} />
       </div>
 
-      <div className="mt-4 grid gap-4 lg:grid-cols-2">
+      <div className="mt-4 grid gap-4 lg:grid-cols-3">
+        <FinishedShelf year={year} finished={review.finished} finishedHours={review.finishedHours} />
         <div className="rounded-card border border-border bg-card p-4">
           <h3 className="mb-2 text-sm font-medium text-muted-foreground">Most played in {year}</h3>
           {review.mostPlayed.length ? (
@@ -176,27 +258,9 @@ function YearInReview({ year, years, onYearChange, events, monthly, games }) {
               ))}
             </ol>
           ) : (
-            <p className="text-sm text-muted-foreground">No tracked playtime in {year}.</p>
-          )}
-        </div>
-        <div className="rounded-card border border-border bg-card p-4">
-          <h3 className="mb-2 text-sm font-medium text-muted-foreground">Finished in {year}</h3>
-          {review.finished.length ? (
-            <ul className="max-h-48 space-y-1.5 overflow-y-auto text-sm">
-              {[...review.finished]
-                .sort((a, b) => Date.parse(b.event.changedUtc) - Date.parse(a.event.changedUtc))
-                .map(({ event, game }) => (
-                  <li key={event.appId} className="flex items-center justify-between gap-3">
-                    <GameButton appId={event.appId} name={event.name} />
-                    <span className="shrink-0 text-xs tabular-nums text-muted-foreground">
-                      {formatDate(event.changedUtc, { short: true })}
-                      {game ? ` · ${formatHours(review.finishedHours({ game }) * 60)}` : ""}
-                    </span>
-                  </li>
-                ))}
-            </ul>
-          ) : (
-            <p className="text-sm text-muted-foreground">Nothing marked Completed in {year} yet.</p>
+            <p className="text-sm text-muted-foreground">
+              No tracked playtime in {year}. Sift counts the hours Steam adds between syncs, so this fills in once you play and sync again on a later day.
+            </p>
           )}
         </div>
       </div>
@@ -239,7 +303,9 @@ function Trends({ events, monthly, games }) {
 
     // Backlog size at each month end, worked backwards from today through status changes.
     // A missing fromStatus means the game had no entry yet, i.e. it was in Backlog by default.
-    const sorted = [...events].sort((a, b) => Date.parse(b.changedUtc) - Date.parse(a.changedUtc));
+    // Apps now marked Other never counted, so their history is left out.
+    const counted = new Set(games.map((game) => game.appId));
+    const sorted = events.filter((event) => counted.has(event.appId)).sort((a, b) => Date.parse(b.changedUtc) - Date.parse(a.changedUtc));
     let size = games.filter((game) => game.status === "Backlog").length;
     let cursor = 0;
     const backlogByMonth = new Map();

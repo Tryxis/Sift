@@ -155,7 +155,6 @@ export function GameCard({ game, onUpdateGame, isNew = false, queuePosition = nu
               <StatusPicker
                 variant="inline"
                 status={game.status}
-                playedBefore={game.playedBefore}
                 onChange={handleStatusChange}
                 gameName={game.name}
               />
@@ -201,7 +200,6 @@ export function GameCard({ game, onUpdateGame, isNew = false, queuePosition = nu
               <StatusPicker
                 variant="boxed"
                 status={game.status}
-                playedBefore={game.playedBefore}
                 onChange={handleStatusChange}
                 gameName={game.name}
               />

@@ -19,7 +19,7 @@ const TITLES = [
   [289070, "Civilization VI"], [1158310, "Crusader Kings III"], [281990, "Stellaris"], [1142710, "Total War: WARHAMMER III"],
 ];
 
-const STATUS_CYCLE = ["Backlog", "Backlog", "Backlog", "Playing", "Completed", "Completed", "Abandoned", "Problem"];
+const STATUS_CYCLE = ["Backlog", "Backlog", "Backlog", "Playing", "Completed", "Completed", "CompletedBefore", "Abandoned", "Problem"];
 const DECK = ["Verified", "Playable", "Unsupported", "Unknown"];
 const GENRES = [["Action", "Indie"], ["RPG", "Adventure"], ["Strategy", "Simulation"], ["Action", "Adventure"], ["Indie", "Casual"]];
 
@@ -90,6 +90,7 @@ function buildLibrary(steamId) {
       deckCompatibility: DECK[appId % DECK.length],
       isMultiplayer: appId % 3 === 0,
       ...achievements(random, minutes),
+      kind: "Game",
     };
   }).sort((a, b) => b.playtimeForeverMinutes - a.playtimeForeverMinutes);
 

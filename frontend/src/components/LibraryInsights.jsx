@@ -2,7 +2,7 @@ import { useMemo } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { findDuplicates } from "@/lib/gameMath";
 import { formatHours } from "@/lib/format";
-import { getStatusMeta } from "@/lib/status";
+import { getStatusMeta, isFinished } from "@/lib/status";
 import { cn } from "@/lib/utils";
 import { useGameActions } from "./GameActions";
 
@@ -45,7 +45,7 @@ function finishRates(games, buckets, read) {
       const value = read(game);
       return value != null && test(value);
     });
-    const completed = inBucket.filter((game) => game.status === "Completed").length;
+    const completed = inBucket.filter(isFinished).length;
     const abandoned = inBucket.filter((game) => game.status === "Abandoned").length;
     const decided = completed + abandoned;
     return { label, total: inBucket.length, completed, abandoned, rate: decided ? (completed / decided) * 100 : null };
@@ -89,7 +89,7 @@ function FinishRateChart({ rows }) {
 
 function GameLink({ game, className }) {
   const { openDetails } = useGameActions();
-  const status = getStatusMeta(game.status, game.playedBefore);
+  const status = getStatusMeta(game.status);
   return (
     <button type="button" onClick={() => openDetails(game.appId)} className={cn("flex min-w-0 items-center gap-2 text-left text-sm hover:underline", className)}>
       <span className={cn("h-2 w-2 shrink-0 rounded-full", status.dotClass)} title={status.label} />

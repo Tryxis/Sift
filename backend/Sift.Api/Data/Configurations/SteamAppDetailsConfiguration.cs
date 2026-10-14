@@ -12,6 +12,7 @@ public sealed class SteamAppDetailsConfiguration : IEntityTypeConfiguration<Stea
         builder.HasKey(d => d.AppId);
 
         builder.Property(d => d.AppId).ValueGeneratedNever();
+        builder.Property(d => d.StoreType).HasMaxLength(32);
         builder.Property(d => d.Genres).HasColumnType("text[]");
         builder.Property(d => d.Categories).HasColumnType("text[]");
         builder.Property(d => d.Developers).HasColumnType("text[]");

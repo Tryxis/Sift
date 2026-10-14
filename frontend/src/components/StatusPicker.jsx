@@ -42,11 +42,11 @@ function useLabelFits(enabled, text, containerRef, buttonRef, labelRef) {
   return fits;
 }
 
-export function StatusPicker({ status, playedBefore = false, onChange, variant = "dot", gameName }) {
+export function StatusPicker({ status, onChange, variant = "dot", gameName }) {
   const triggerRef = useRef(null);
   const containerRef = useRef(null);
   const labelRef = useRef(null);
-  const currentMeta = getStatusMeta(status, playedBefore);
+  const currentMeta = getStatusMeta(status);
   const isInline = variant === "inline";
   const labelFits = useLabelFits(isInline, currentMeta.label, containerRef, triggerRef, labelRef);
 
@@ -91,7 +91,7 @@ export function StatusPicker({ status, playedBefore = false, onChange, variant =
             key={s}
             onSelect={() => s !== status && onChange(s, triggerRef.current?.getBoundingClientRect() ?? null)}
           >
-            <span className={cn("h-2.5 w-2.5 rounded-full", getStatusMeta(s, s === "Completed" && playedBefore).dotClass)} />
+            <span className={cn("h-2.5 w-2.5 rounded-full", STATUS_META[s].dotClass)} />
             <span className="flex-1">{STATUS_META[s].label}</span>
             {s === status && <Check className="h-3.5 w-3.5 text-muted-foreground" />}
           </DropdownMenuItem>

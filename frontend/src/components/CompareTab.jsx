@@ -4,7 +4,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { api } from "@/lib/api";
 import { formatHours } from "@/lib/format";
 import { cachedRequest } from "@/lib/remoteCache";
-import { getStatusMeta } from "@/lib/status";
+import { getStatusMeta, isCountable, isFinished } from "@/lib/status";
 import { cn } from "@/lib/utils";
 import { ProfileSearch } from "./ProfileSearch";
 import { useGameActions } from "./GameActions";
@@ -52,7 +52,7 @@ function ListSection({ title, detail, empty, children, count }) {
 
 function MyGameName({ game }) {
   const { openDetails } = useGameActions();
-  const status = getStatusMeta(game.status, game.playedBefore);
+  const status = getStatusMeta(game.status);
   return (
     <button type="button" onClick={() => openDetails(game.appId)} className="flex min-w-0 items-center gap-2 text-left text-sm hover:underline">
       <span className={cn("h-2 w-2 shrink-0 rounded-full", status.dotClass)} title={`You: ${status.label}`} />
@@ -108,10 +108,11 @@ export function CompareTab({ profile, games }) {
   const comparison = useMemo(() => {
     const friend = state.friend;
     if (!friend) return null;
-    const theirs = new Map(friend.games.map((game) => [game.appId, game]));
+    const friendGames = friend.games.filter(isCountable);
+    const theirs = new Map(friendGames.map((game) => [game.appId, game]));
     const mine = new Set(games.map((game) => game.appId));
     const common = games.filter((game) => theirs.has(game.appId)).map((game) => ({ mine: game, theirs: theirs.get(game.appId) }));
-    const usesSift = friend.games.some((game) => game.status !== "Backlog");
+    const usesSift = friendGames.some((game) => game.status !== "Backlog");
     const mostPlayed = common
       .filter(({ mine: m, theirs: t }) => m.playtimeForeverMinutes > 0 && t.playtimeForeverMinutes > 0)
       .sort((a, b) => b.mine.playtimeForeverMinutes + b.theirs.playtimeForeverMinutes - (a.mine.playtimeForeverMinutes + a.theirs.playtimeForeverMinutes))
@@ -121,14 +122,14 @@ export function CompareTab({ profile, games }) {
       common,
       mostPlayed,
       mostPlayedMax: Math.max(1, ...mostPlayed.flatMap(({ mine: m, theirs: t }) => [m.playtimeForeverMinutes, t.playtimeForeverMinutes])),
-      onlyTheirs: friend.games.filter((game) => !mine.has(game.appId)).sort((a, b) => b.playtimeForeverMinutes - a.playtimeForeverMinutes),
-      theirHours: Math.round(friend.games.reduce((sum, game) => sum + game.playtimeForeverMinutes, 0) / 60),
+      onlyTheirs: friendGames.filter((game) => !mine.has(game.appId)).sort((a, b) => b.playtimeForeverMinutes - a.playtimeForeverMinutes),
+      theirHours: Math.round(friendGames.reduce((sum, game) => sum + game.playtimeForeverMinutes, 0) / 60),
       lovedUnstarted: common
-        .filter(({ mine: m, theirs: t }) => m.playtimeForeverMinutes === 0 && (t.playtimeForeverMinutes >= LOVED_MINUTES || t.status === "Completed"))
+        .filter(({ mine: m, theirs: t }) => m.playtimeForeverMinutes === 0 && (t.playtimeForeverMinutes >= LOVED_MINUTES || isFinished(t)))
         .sort((a, b) => b.theirs.playtimeForeverMinutes - a.theirs.playtimeForeverMinutes),
       usesSift,
       theyFinished: usesSift
-        ? common.filter(({ mine: m, theirs: t }) => t.status === "Completed" && m.status !== "Completed")
+        ? common.filter(({ mine: m, theirs: t }) => isFinished(t) && !isFinished(m))
         : [],
     };
   }, [state.friend, games]);
@@ -167,7 +168,7 @@ export function CompareTab({ profile, games }) {
             <div className="min-w-0">
               <p className="truncate font-medium">{comparison.friend.profile.personaName}</p>
               <p className="text-xs text-muted-foreground">
-                {comparison.friend.profile.isLibraryVisible ? `${comparison.friend.games.length.toLocaleString()} games` : "Game details are private"}
+                {comparison.friend.profile.isLibraryVisible ? `${comparison.friend.games.filter(isCountable).length.toLocaleString()} games` : "Game details are private"}
               </p>
             </div>
           </div>
@@ -190,7 +191,7 @@ export function CompareTab({ profile, games }) {
                 <li key={mine.appId} className="flex items-center justify-between gap-3 py-2">
                   <MyGameName game={mine} />
                   <span className="shrink-0 text-xs tabular-nums text-muted-foreground">
-                    {theirs.status === "Completed" ? "Finished · " : ""}
+                    {isFinished(theirs) ? "Finished · " : ""}
                     {formatHours(theirs.playtimeForeverMinutes)}
                   </span>
                 </li>

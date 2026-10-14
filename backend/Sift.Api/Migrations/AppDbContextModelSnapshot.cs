@@ -335,6 +335,10 @@ namespace Sift.Api.Migrations
                         .HasMaxLength(2000)
                         .HasColumnType("character varying(2000)");
 
+                    b.Property<string>("StoreType")
+                        .HasMaxLength(32)
+                        .HasColumnType("character varying(32)");
+
                     b.HasKey("AppId");
 
                     b.HasIndex("CheckedUtc");

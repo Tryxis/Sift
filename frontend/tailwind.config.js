@@ -37,6 +37,7 @@ export default {
           "completed-before": "hsl(var(--status-completed-before))",
           abandoned: "hsl(var(--status-abandoned))",
           problem: "hsl(var(--status-problem))",
+          na: "hsl(var(--status-na))",
         },
       },
       fontFamily: {
