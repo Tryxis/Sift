@@ -23,6 +23,8 @@ public static class LibraryMappingExtensions
     /// Merges Steam-owned data with the owner's backlog entry and any enrichment.
     /// A missing backlog entry means the game has never been organised, so it defaults to Backlog.
     /// A review row with no reviews (including delisted apps) reads as unknown: score and count null.
+    /// Private notes are dropped unless the viewer owns the library: this is the one place every
+    /// library response is built, so no endpoint can leak them.
     /// </summary>
     public static LibraryGameResponse ToLibraryGameResponse(
         this OwnedGame owned,
@@ -30,8 +32,11 @@ public static class LibraryMappingExtensions
         HowLongToBeatEntry? timeToBeat,
         SteamReviewSummary? reviews,
         AppDetailsSummary? details,
-        AchievementProgress? achievements)
+        AchievementProgress? achievements,
+        bool viewerIsOwner)
     {
+        var notesPrivate = entry?.NotesPrivate ?? false;
+
         var reviewCount = reviews is null ? 0 : reviews.TotalPositive + reviews.TotalNegative;
         var hasAchievements = achievements is { Available: true };
 
@@ -45,7 +50,9 @@ public static class LibraryMappingExtensions
             owned.LastPlayedUtc,
             entry?.Status ?? BacklogStatus.Backlog,
             entry?.Priority,
-            entry?.Notes,
+            notesPrivate && !viewerIsOwner ? null : entry?.Notes,
+            // Others aren't told a private note exists.
+            viewerIsOwner && notesPrivate,
             timeToBeat?.MainMinutes,
             timeToBeat?.MainExtrasMinutes,
             timeToBeat?.CompletionistMinutes,

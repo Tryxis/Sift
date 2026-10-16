@@ -1,15 +1,20 @@
-// Fired when the server's password gate rejects a request, so the app can show the sign-in screen.
-export const LOCKED_EVENT = "sift:locked";
+// Fired when the server says the session has ended (expired or signed out elsewhere),
+// so the app can show the sign-in screen.
+export const SIGNED_OUT_EVENT = "sift:signed-out";
 
 async function request(path, options = {}) {
   const response = await fetch(path, {
-    headers: { "Content-Type": "application/json" },
-    credentials: "same-origin",
     ...options,
+    headers: {
+      "Content-Type": "application/json",
+      // The server rejects state-changing requests without this header (CSRF defence).
+      "X-Sift-Request": "1",
+    },
+    credentials: "same-origin",
   });
 
-  if (response.status === 401 && !path.startsWith("/api/access")) {
-    window.dispatchEvent(new Event(LOCKED_EVENT));
+  if (response.status === 401 && !path.startsWith("/api/auth")) {
+    window.dispatchEvent(new Event(SIGNED_OUT_EVENT));
   }
 
   if (!response.ok) {
@@ -31,12 +36,17 @@ async function request(path, options = {}) {
 
 const profilePath = (steamId) => `/api/profiles/${encodeURIComponent(steamId)}`;
 
+/** Where to send the browser to sign in through Steam; it comes back to `returnUrl` afterwards. */
+export function steamSignInUrl(returnUrl = "/") {
+  return `/api/auth/steam/sign-in?returnUrl=${encodeURIComponent(returnUrl)}`;
+}
+
 export const httpApi = {
-  getAccessStatus: () => request("/api/access"),
+  getSession: () => request("/api/auth/session"),
 
-  signIn: (password) => request("/api/access/sign-in", { method: "POST", body: JSON.stringify({ password }) }),
+  signOut: () => request("/api/auth/sign-out", { method: "POST" }),
 
-  signOut: () => request("/api/access/sign-out", { method: "POST" }),
+  signOutEverywhere: () => request("/api/auth/sign-out-everywhere", { method: "POST" }),
 
   syncProfile: (identifier) =>
     request("/api/profiles/sync", { method: "POST", body: JSON.stringify({ identifier }) }),

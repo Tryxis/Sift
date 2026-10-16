@@ -7,8 +7,9 @@ const byName = (a, b) => a.name.localeCompare(b.name);
 /**
  * Named filter views stored per profile. Restores the last selected one on load, unless
  * the page was opened from a shared link (`restoreSelection: false`), which wins.
+ * On someone else's profile (`readOnly`) their views can be applied, but nothing is saved.
  */
-export function useSavedViews(steamId, filters, { restoreSelection = true } = {}) {
+export function useSavedViews(steamId, filters, { restoreSelection = true, readOnly = false } = {}) {
   const { applyConfiguration, clearFilters } = filters;
   const [views, setViews] = useState([]);
   const [selectedId, setSelectedId] = useState("");
@@ -40,6 +41,13 @@ export function useSavedViews(steamId, filters, { restoreSelection = true } = {}
 
   const select = useCallback(async (id) => {
     setError("");
+    if (readOnly) {
+      setSelectedId(id || "");
+      const view = views.find((item) => item.id === id);
+      if (view) applyConfiguration(view.configuration);
+      else clearFilters();
+      return;
+    }
     try {
       const updated = await api.selectSavedView(steamId, id || null);
       setViews(updated);
@@ -50,18 +58,19 @@ export function useSavedViews(steamId, filters, { restoreSelection = true } = {}
     } catch (e) {
       setError(`Saved view couldn't be selected: ${e.message}`);
     }
-  }, [steamId, applyConfiguration, clearFilters]);
+  }, [steamId, readOnly, views, applyConfiguration, clearFilters]);
 
   /** Forget the selected view but keep the current filters (e.g. when a preset is applied). */
   const deselect = useCallback(async () => {
     if (!selectedId) return;
     setSelectedId("");
+    if (readOnly) return;
     try {
       setViews(await api.selectSavedView(steamId, null));
     } catch (e) {
       setError(`Saved view selection couldn't be cleared: ${e.message}`);
     }
-  }, [steamId, selectedId]);
+  }, [steamId, selectedId, readOnly]);
 
   /** Returns true when saved, so the caller can reset its form. */
   const saveAs = async (name) => {

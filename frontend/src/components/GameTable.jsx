@@ -55,16 +55,18 @@ function Checkbox({ checked, indeterminate = false, onChange, label }) {
 
 function GameTableRow({ game, onUpdateGame, selected, onSelectedChange }) {
   const status = getStatusMeta(game.status);
-  const { openDetails, newAppIds } = useGameActions();
+  const { openDetails, newAppIds, readOnly } = useGameActions();
   const { handleStatusChange, statusChangePrompt } = useGameStatusChange(game, onUpdateGame);
   const rowBackground = selected ? "bg-[hsl(219_40%_14%)]" : "bg-card group-hover:bg-[hsl(217_22%_11%)]";
 
   return (
     <tr className={`group transition-colors ${selected ? "bg-status-playing/[0.08]" : "hover:bg-muted/30"}`} data-app-id={game.appId}>
-      <td className={`sticky left-0 z-10 w-10 py-2.5 pl-3 pr-1 sm:pl-4 ${rowBackground}`}>
-        <Checkbox checked={selected} onChange={onSelectedChange} label={`Select ${game.name}`} />
-      </td>
-      <th scope="row" className={`sticky left-10 z-10 max-w-[10rem] px-2 py-2.5 text-left font-medium sm:max-w-72 sm:px-3 ${rowBackground}`}>
+      {!readOnly && (
+        <td className={`sticky left-0 z-10 w-10 py-2.5 pl-3 pr-1 sm:pl-4 ${rowBackground}`}>
+          <Checkbox checked={selected} onChange={onSelectedChange} label={`Select ${game.name}`} />
+        </td>
+      )}
+      <th scope="row" className={`sticky ${readOnly ? "left-0" : "left-10"} z-10 max-w-[10rem] px-2 py-2.5 text-left font-medium sm:max-w-72 sm:px-3 ${rowBackground}`}>
         <button type="button" onClick={() => openDetails(game.appId)} className="flex max-w-full items-center gap-2 text-left hover:underline" title={game.name}>
           <span className="truncate">{game.name}</span>
           {newAppIds.has(game.appId) && <span className="shrink-0 rounded-full bg-status-playing px-1.5 text-[10px] font-semibold uppercase text-primary-foreground">New</span>}
@@ -100,6 +102,7 @@ function GameTableRow({ game, onUpdateGame, selected, onSelectedChange }) {
 }
 
 export function GameTable({ games, sortColumn, sortDirection, onSortChange, onUpdateGame, selectedIds, onSelectionChange }) {
+  const { readOnly } = useGameActions();
   const pageIds = games.map((game) => game.appId);
   const selectedOnPage = pageIds.filter((id) => selectedIds.has(id)).length;
   const setSelected = (ids, isSelected) => {
@@ -121,20 +124,22 @@ export function GameTable({ games, sortColumn, sortDirection, onSortChange, onUp
       <table className="w-full min-w-[980px] border-collapse text-left text-sm">
         <thead className="bg-muted/50 text-xs uppercase tracking-wide text-muted-foreground">
           <tr>
-            <th scope="col" className="sticky left-0 z-20 w-10 bg-[hsl(217_21%_11%)] py-3 pl-3 pr-1 sm:pl-4">
-              <Checkbox
-                checked={games.length > 0 && selectedOnPage === games.length}
-                indeterminate={selectedOnPage > 0 && selectedOnPage < games.length}
-                onChange={(checked) => setSelected(pageIds, checked)}
-                label="Select all games on this page"
-              />
-            </th>
+            {!readOnly && (
+              <th scope="col" className="sticky left-0 z-20 w-10 bg-[hsl(217_21%_11%)] py-3 pl-3 pr-1 sm:pl-4">
+                <Checkbox
+                  checked={games.length > 0 && selectedOnPage === games.length}
+                  indeterminate={selectedOnPage > 0 && selectedOnPage < games.length}
+                  onChange={(checked) => setSelected(pageIds, checked)}
+                  label="Select all games on this page"
+                />
+              </th>
+            )}
             {COLUMNS.map((column) => (
               <th
                 key={column.id}
                 scope="col"
                 aria-sort={sortColumn === column.id ? sortDirection : "none"}
-                className={`whitespace-nowrap px-3 py-3 sm:px-4 ${ALIGN[column.align]} ${column.id === "name" ? "sticky left-10 z-20 bg-[hsl(217_21%_11%)] px-2 sm:px-3" : ""}`}
+                className={`whitespace-nowrap px-3 py-3 sm:px-4 ${ALIGN[column.align]} ${column.id === "name" ? `sticky ${readOnly ? "left-0" : "left-10"} z-20 bg-[hsl(217_21%_11%)] px-2 sm:px-3` : ""}`}
               >
                 <SortButton
                   column={column}

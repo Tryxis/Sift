@@ -1,12 +1,16 @@
 using System.ComponentModel.DataAnnotations;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Sift.Api.Contracts.Responses;
+using Sift.Api.Infrastructure.Auth;
 using Sift.Api.Services.Interfaces;
 
 namespace Sift.Api.Controllers;
 
 /// <summary>History Sift has recorded for a synced profile: status changes and playtime over time.</summary>
 [ApiController]
+// Read-only: open to guests too (see ViewerRequirement).
+[Authorize(Policy = ViewerRequirement.PolicyName)]
 [Route("api/profiles/{steamId}")]
 [Produces("application/json")]
 public sealed class ProfileHistoryController(IProfileHistoryService profileHistoryService) : ControllerBase

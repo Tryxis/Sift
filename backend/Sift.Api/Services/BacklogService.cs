@@ -11,9 +11,8 @@ using Sift.Api.Services.Results;
 namespace Sift.Api.Services;
 
 /// <summary>
-/// The only writer of backlog_entries and status_changes. When Steam sign-in lands, the ownership
-/// check sits in front of this service (an authorization policy on the controller),
-/// so nothing here needs to change.
+/// The only writer of backlog_entries and status_changes. The ownership check sits in front of
+/// this service (the ProfileOwner policy on BacklogController), so it trusts the steamId it's given.
 /// </summary>
 public sealed class BacklogService(AppDbContext db, TimeProvider timeProvider) : IBacklogService
 {
@@ -62,7 +61,8 @@ public sealed class BacklogService(AppDbContext db, TimeProvider timeProvider) :
         var achievements = await db.AchievementProgress.AsNoTracking()
             .FirstOrDefaultAsync(a => a.SteamId == steamId && a.AppId == appId, cancellationToken);
 
-        return ownedGame.ToLibraryGameResponse(entry, timeToBeat, reviews, details, achievements);
+        // Only the owner gets here (ProfileOwner policy), so private notes are theirs to see.
+        return ownedGame.ToLibraryGameResponse(entry, timeToBeat, reviews, details, achievements, viewerIsOwner: true);
     }
 
     /// <summary>Applies the request and records any status change, all in one SaveChanges.</summary>
@@ -132,6 +132,11 @@ public sealed class BacklogService(AppDbContext db, TimeProvider timeProvider) :
         if (request.PlayedBefore is { } playedBefore)
         {
             entry.PlayedBefore = playedBefore;
+        }
+
+        if (request.NotesPrivate is { } notesPrivate)
+        {
+            entry.NotesPrivate = notesPrivate;
         }
 
         if (request.NotInterested is { } notInterested)

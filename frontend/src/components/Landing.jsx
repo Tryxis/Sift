@@ -1,19 +1,29 @@
+import { Button } from "@/components/ui/button";
 import { ProfileSearch } from "./ProfileSearch";
 
-export function Landing({ onSearch, isBusy }) {
+/** Shown while the first library loads, or if it couldn't be loaded (the error banner says why). */
+export function Landing({ onSearch, onLoadHome, isBusy }) {
+  if (isBusy) {
+    return (
+      <section className="relative z-10 flex min-h-[60vh] flex-col justify-center py-16" aria-busy="true">
+        <p className="font-display text-3xl font-light tracking-tight text-muted-foreground">Loading your library…</p>
+      </section>
+    );
+  }
+
   return (
     <section className="relative z-10 flex min-h-[60vh] flex-col justify-center py-16">
-      <h1 className="max-w-3xl font-display text-5xl font-light leading-[1.05] tracking-tight md:text-7xl">
-        Sift through the pile.
+      <h1 className="max-w-3xl font-display text-4xl font-light leading-[1.05] tracking-tight md:text-6xl">
+        Your library didn&apos;t load.
       </h1>
-      <p className="mt-6 max-w-xl text-base leading-relaxed text-muted-foreground md:text-lg">
-        Look up your Steam profile, then sort every game into what you&apos;re playing, what you&apos;ve
-        finished, and what you&apos;re letting go.
+      <p className="mt-6 max-w-xl text-base leading-relaxed text-muted-foreground">
+        Steam only shares a library when the profile&apos;s game details are public. You can try again, or
+        look up someone else&apos;s profile to view it read-only.
       </p>
-      <ProfileSearch onSubmit={onSearch} isBusy={isBusy} size="large" className="mt-10 max-w-xl" />
-      <p className="mt-3 text-sm text-muted-foreground">
-        The profile&apos;s game details need to be public on Steam.
-      </p>
+      <Button onClick={onLoadHome} className="mt-8 h-11 self-start px-6">
+        Try again
+      </Button>
+      <ProfileSearch onSubmit={onSearch} isBusy={isBusy} size="large" className="mt-8 max-w-xl" />
     </section>
   );
 }

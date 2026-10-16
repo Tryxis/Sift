@@ -17,6 +17,9 @@ public class BacklogEntry
     public BacklogStatus Status { get; set; } = BacklogStatus.Backlog;
     public int? Priority { get; set; }
     public string? Notes { get; set; }
+
+    /// <summary>When true, Notes are shown only to the owner; everyone else gets none. Public by default.</summary>
+    public bool NotesPrivate { get; set; }
     public bool PlayedBefore { get; set; }
     public decimal? FinishedHours { get; set; }
     public bool NotInterested { get; set; }

@@ -57,7 +57,7 @@ export function SaveViewForm({ onSave, onCancel, defaultName = "" }) {
  * Saved views plus the built-in presets. The trigger names whichever is applied and marks
  * it once the filters drift from it. The "save as" form is rendered separately by SaveViewForm.
  */
-export function SavedViewsMenu({ savedViews, activePreset, isModified, onApplyPreset, onClose, onStartSave, onCopyLink, className }) {
+export function SavedViewsMenu({ savedViews, activePreset, isModified, onApplyPreset, onClose, onStartSave, onCopyLink, readOnly = false, className }) {
   const { views, selectedView, isLoading, select, updateSelected, deleteSelected } = savedViews;
   // Radix returns focus to the trigger on close; send it to the name field instead when saving.
   const focusNameOnClose = useRef(false);
@@ -93,9 +93,11 @@ export function SavedViewsMenu({ savedViews, activePreset, isModified, onApplyPr
           document.getElementById("saved-view-name")?.focus();
         }}
       >
-        <DropdownMenuLabel>Your views</DropdownMenuLabel>
+        <DropdownMenuLabel>{readOnly ? "Their views" : "Your views"}</DropdownMenuLabel>
         {views.length === 0 && (
-          <p className="px-2.5 pb-2 text-xs text-muted-foreground">Save your current filters and sort to come back to them later.</p>
+          <p className="px-2.5 pb-2 text-xs text-muted-foreground">
+            {readOnly ? "No saved views on this profile." : "Save your current filters and sort to come back to them later."}
+          </p>
         )}
         {views.map((view) => (
           <DropdownMenuItem key={view.id} onSelect={() => select(view.id)} className="justify-between">
@@ -103,16 +105,18 @@ export function SavedViewsMenu({ savedViews, activePreset, isModified, onApplyPr
             {view.id === selectedView?.id && <Check className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />}
           </DropdownMenuItem>
         ))}
-        <DropdownMenuItem
-          onSelect={() => {
-            focusNameOnClose.current = true;
-            onStartSave();
-          }}
-        >
-          <Plus className="h-3.5 w-3.5" aria-hidden="true" />
-          Save current as new view…
-        </DropdownMenuItem>
-        {selectedView && (
+        {!readOnly && (
+          <DropdownMenuItem
+            onSelect={() => {
+              focusNameOnClose.current = true;
+              onStartSave();
+            }}
+          >
+            <Plus className="h-3.5 w-3.5" aria-hidden="true" />
+            Save current as new view…
+          </DropdownMenuItem>
+        )}
+        {selectedView && !readOnly && (
           <>
             <DropdownMenuItem onSelect={updateSelected} disabled={!isModified}>
               <Save className="h-3.5 w-3.5" aria-hidden="true" />

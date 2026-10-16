@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { ArrowDown, ArrowUp, Eye, EyeOff, ExternalLink, ListPlus, ListX, ThumbsUp, Trophy } from "lucide-react";
+import { ArrowDown, ArrowUp, Eye, EyeOff, ExternalLink, Globe, ListPlus, ListX, Lock, ThumbsUp, Trophy } from "lucide-react";
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { api } from "@/lib/api";
@@ -8,7 +8,7 @@ import { progressPercent, reviewDescription, reviewTone, steamLinks } from "@/li
 import { addToQueuePatch, moveInQueue, queueOf } from "@/lib/queue";
 import { useCachedRequest } from "@/lib/remoteCache";
 import { useGameStatusChange } from "@/hooks/useGameStatusChange";
-import { cn } from "@/lib/utils";
+import { cn, safeExternalUrl } from "@/lib/utils";
 import { GameCover } from "./GameCover";
 import { FinishedHoursInput } from "./FinishedHoursInput";
 import { PlayedBeforeToggle } from "./PlayedBeforeToggle";
@@ -43,10 +43,16 @@ function Fact({ label, children }) {
   );
 }
 
-function NotesEditor({ game, onUpdateGame }) {
+function NotesEditor({ game, onUpdateGame, readOnly }) {
   const stored = game.notes ?? "";
   const [value, setValue] = useState(stored);
   useEffect(() => setValue(stored), [stored]);
+
+  if (readOnly) {
+    return stored
+      ? <p className="whitespace-pre-wrap break-words rounded-well border border-border px-3 py-2 text-sm">{stored}</p>
+      : <p className="text-sm text-muted-foreground">No notes.</p>;
+  }
 
   const save = () => {
     const next = value.trim();
@@ -66,16 +72,35 @@ function NotesEditor({ game, onUpdateGame }) {
         placeholder="Why you bought it, where you left off, who recommended it…"
         className="w-full resize-y rounded-well border border-border-strong bg-abyss px-3 py-2 text-base placeholder:text-muted-foreground/60 sm:text-sm"
       />
-      <p className="mt-1 text-right text-[11px] text-muted-foreground">
-        {value.length > NOTES_MAX * 0.8 && `${value.length}/${NOTES_MAX} · `}Saves when you click away
-      </p>
+      <div className="mt-1 flex flex-wrap items-center justify-between gap-2 text-[11px] text-muted-foreground">
+        <button
+          type="button"
+          role="switch"
+          aria-checked={Boolean(game.notesPrivate)}
+          onClick={() => onUpdateGame(game.appId, { notesPrivate: !game.notesPrivate })}
+          title={game.notesPrivate ? "Only you can see these notes" : "Anyone viewing your library can see these notes"}
+          className="flex items-center gap-1.5 rounded-full border border-border-strong px-2 py-0.5 hover:text-foreground"
+        >
+          {game.notesPrivate ? <Lock className="h-3 w-3" aria-hidden="true" /> : <Globe className="h-3 w-3" aria-hidden="true" />}
+          {game.notesPrivate ? "Private: only you" : "Public: anyone viewing"}
+        </button>
+        <span>{value.length > NOTES_MAX * 0.8 && `${value.length}/${NOTES_MAX} · `}Saves when you click away</span>
+      </div>
     </div>
   );
 }
 
-function QueueControls({ game, games, onUpdateGames }) {
+function QueueControls({ game, games, onUpdateGames, readOnly }) {
   const queue = queueOf(games);
   const index = queue.findIndex((item) => item.appId === game.appId);
+
+  if (readOnly) {
+    return index === -1 ? null : (
+      <span className="text-sm">
+        #{index + 1} <span className="text-muted-foreground">of {queue.length} in Up Next</span>
+      </span>
+    );
+  }
 
   if (index === -1) {
     return (
@@ -121,8 +146,8 @@ function StoreDetails({ appId }) {
         <Fact label="Released">{data.releaseDate ?? "—"}</Fact>
         <Fact label="Developer">{data.developers?.join(", ") || "—"}</Fact>
         <Fact label="Metacritic">
-          {data.metacriticScore == null ? "—" : data.metacriticUrl
-            ? <a className="hover:underline" href={data.metacriticUrl} target="_blank" rel="noreferrer">{data.metacriticScore}</a>
+          {data.metacriticScore == null ? "—" : safeExternalUrl(data.metacriticUrl)
+            ? <a className="hover:underline" href={safeExternalUrl(data.metacriticUrl)} target="_blank" rel="noreferrer">{data.metacriticScore}</a>
             : data.metacriticScore}
         </Fact>
         <Fact label="Modes">{modes.join(", ") || "—"}</Fact>
@@ -161,7 +186,7 @@ function Achievements({ steamId, appId }) {
 }
 
 function DetailsBody({ game }) {
-  const { steamId, games, updateGame, updateGames } = useGameActions();
+  const { steamId, games, updateGame, updateGames, readOnly } = useGameActions();
   const [container, setContainer] = useState(null);
   const { handleStatusChange, statusChangePrompt } = useGameStatusChange(game, updateGame, { container });
   const progress = progressPercent(game);
@@ -196,7 +221,7 @@ function DetailsBody({ game }) {
           </div>
         </header>
 
-        <Section title="Your tracking">
+        <Section title={readOnly ? "Tracking (read-only)" : "Your tracking"}>
           <div className="grid gap-3 sm:grid-cols-3">
             <div className="space-y-1">
               <span className="text-xs text-muted-foreground">
@@ -218,19 +243,23 @@ function DetailsBody({ game }) {
             </div>
           </div>
           <div className="flex flex-wrap items-center gap-2">
-            <QueueControls game={game} games={games} onUpdateGames={updateGames} />
-            <Button
-              variant={game.notInterested ? "outline" : "ghost"}
-              size="sm"
-              aria-pressed={Boolean(game.notInterested)}
-              onClick={() => updateGame(game.appId, { notInterested: !game.notInterested })}
-              title="Hides it from Play Next suggestions"
-            >
-              {game.notInterested ? <Eye className="h-3.5 w-3.5" aria-hidden="true" /> : <EyeOff className="h-3.5 w-3.5" aria-hidden="true" />}
-              {game.notInterested ? "Hidden from Play Next" : "Not interested"}
-            </Button>
+            <QueueControls game={game} games={games} onUpdateGames={updateGames} readOnly={readOnly} />
+            {readOnly ? (
+              game.notInterested && <span className="text-sm text-muted-foreground">Hidden from Play Next</span>
+            ) : (
+              <Button
+                variant={game.notInterested ? "outline" : "ghost"}
+                size="sm"
+                aria-pressed={Boolean(game.notInterested)}
+                onClick={() => updateGame(game.appId, { notInterested: !game.notInterested })}
+                title="Hides it from Play Next suggestions"
+              >
+                {game.notInterested ? <Eye className="h-3.5 w-3.5" aria-hidden="true" /> : <EyeOff className="h-3.5 w-3.5" aria-hidden="true" />}
+                {game.notInterested ? "Hidden from Play Next" : "Not interested"}
+              </Button>
+            )}
           </div>
-          <NotesEditor game={game} onUpdateGame={updateGame} />
+          <NotesEditor game={game} onUpdateGame={updateGame} readOnly={readOnly} />
           {statusChangePrompt}
         </Section>
 

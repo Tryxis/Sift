@@ -31,7 +31,7 @@ public sealed class TimeToBeatLookupService(
 
     public async Task<TimeToBeatResponse> GetAsync(int appId, string steamName, CancellationToken cancellationToken)
     {
-        var cacheKey = CacheKey(appId);
+        var cacheKey = CacheKey(appId, steamName);
         if (cache.TryGetValue(cacheKey, out TimeToBeatResponse? cached) && cached is not null)
         {
             return cached;
@@ -106,7 +106,8 @@ public sealed class TimeToBeatLookupService(
         }
     }
 
-    private static string CacheKey(int appId) => $"time-to-beat:{appId}";
+    private static string CacheKey(int appId, string steamName) =>
+        $"time-to-beat:{appId}:{HowLongToBeatMatcher.Normalise(steamName)}";
 
     private static TimeToBeatResponse Unmatched(int appId) => new(appId, null, null, null, Matched: false);
 

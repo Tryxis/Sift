@@ -192,6 +192,11 @@ public sealed partial class HowLongToBeatClient(
             using var document = JsonDocument.Parse(
                 await http.GetStringAsync($"{searchPath}/init?t={timestamp}", cancellationToken));
 
+            if (document.RootElement.ValueKind != JsonValueKind.Object)
+            {
+                throw new HowLongToBeatException("HowLongToBeat's search token response wasn't an object.");
+            }
+
             string? token = null, key = null, value = null;
             foreach (var property in document.RootElement.EnumerateObject())
             {

@@ -1,12 +1,22 @@
 import { useEffect, useState } from "react";
 import { cn } from "@/lib/utils";
+import { useGameActions } from "./GameActions";
 
 /** Edits a game's Finished Hours; saves on blur or Enter, Escape reverts. The unit shows in wide containers. */
 export function FinishedHoursInput({ game, onUpdateGame, className, showUnit = false }) {
   const stored = game.finishedHours?.toString() ?? "";
   const [value, setValue] = useState(stored);
+  const { readOnly } = useGameActions();
 
   useEffect(() => setValue(stored), [stored]);
+
+  if (readOnly) {
+    return (
+      <span className={cn("block truncate px-2 text-right text-sm tabular-nums text-muted-foreground", className)} aria-label={`Finished hours for ${game.name}`}>
+        {stored ? `${stored}${showUnit ? " hrs" : ""}` : "—"}
+      </span>
+    );
+  }
 
   const save = () => {
     const trimmed = value.trim();

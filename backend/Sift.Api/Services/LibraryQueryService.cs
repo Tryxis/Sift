@@ -10,7 +10,7 @@ namespace Sift.Api.Services;
 
 public sealed class LibraryQueryService(AppDbContext db) : ILibraryQueryService
 {
-    public async Task<LibraryResponse> GetLibraryAsync(string steamId, CancellationToken cancellationToken)
+    public async Task<LibraryResponse> GetLibraryAsync(string steamId, string? viewerSteamId, CancellationToken cancellationToken)
     {
         SteamIdGuard.EnsureSteamId64(steamId);
 
@@ -60,7 +60,8 @@ public sealed class LibraryQueryService(AppDbContext db) : ILibraryQueryService
                 timesToBeat.GetValueOrDefault(g.AppId),
                 reviews.GetValueOrDefault(g.AppId),
                 details.GetValueOrDefault(g.AppId),
-                achievements.GetValueOrDefault(g.AppId)))
+                achievements.GetValueOrDefault(g.AppId),
+                viewerIsOwner: string.Equals(viewerSteamId, steamId, StringComparison.Ordinal)))
             .OrderByDescending(g => g.PlaytimeForeverMinutes)
             .ThenBy(g => g.Name)
             .ToList();

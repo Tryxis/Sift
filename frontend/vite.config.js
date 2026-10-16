@@ -18,7 +18,8 @@ export default defineConfig(({ mode }) => ({
   server: {
     port: 5173,
     proxy: {
-      "/api": { target: "http://localhost:5080", changeOrigin: true },
+      // The original Host is kept so Steam sign-in returns to the dev server, not straight to the API.
+      "/api": { target: "http://localhost:5080", changeOrigin: false },
     },
   },
   build: {

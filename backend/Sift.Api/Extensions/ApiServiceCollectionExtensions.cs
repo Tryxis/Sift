@@ -16,6 +16,7 @@ public static class ApiServiceCollectionExtensions
         services.AddProblemDetails();
         services.AddExceptionHandler<ApiExceptionHandler>();
         services.AddHealthChecks();
+        services.AddHsts(options => options.MaxAge = TimeSpan.FromDays(365));
 
         services.AddEndpointsApiExplorer();
         services.AddSwaggerGen();

@@ -1,3 +1,4 @@
+using Microsoft.Extensions.DependencyInjection.Extensions;
 using Sift.Api.Services;
 using Sift.Api.Services.Interfaces;
 
@@ -7,7 +8,7 @@ public static class ApplicationServiceCollectionExtensions
 {
     public static IServiceCollection AddApplicationServices(this IServiceCollection services)
     {
-        services.AddSingleton(TimeProvider.System);
+        services.TryAddSingleton(TimeProvider.System);
         services.AddMemoryCache();
 
         services.AddScoped<ISteamIdResolver, SteamIdResolver>();

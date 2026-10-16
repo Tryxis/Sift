@@ -26,7 +26,7 @@ public sealed class LibrarySyncService(
 {
     private const int MaxAppNameLength = 256;
 
-    public async Task<LibraryResponse> SyncAsync(string identifier, CancellationToken cancellationToken)
+    public async Task<LibraryResponse> SyncAsync(string identifier, string? viewerSteamId, CancellationToken cancellationToken)
     {
         var steamId = await steamIdResolver.ResolveAsync(identifier, cancellationToken);
 
@@ -75,7 +75,7 @@ public sealed class LibrarySyncService(
         logger.LogInformation("Synced profile {SteamId}: {GameCount} games, visible={Visible}",
             steamId, ownedGames.Games?.Count ?? 0, isLibraryVisible);
 
-        return await libraryQueryService.GetLibraryAsync(steamId, cancellationToken);
+        return await libraryQueryService.GetLibraryAsync(steamId, viewerSteamId, cancellationToken);
     }
 
     /// <returns>How many apps were new to the database.</returns>

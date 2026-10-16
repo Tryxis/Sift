@@ -5,6 +5,7 @@ namespace Sift.Api.Contracts.Responses;
 /// <summary>
 /// One game as the frontend sees it: Steam's data, the owner's backlog config and any
 /// enrichment, merged. Enrichment fields are null until the daily job has looked them up.
+/// Private notes are only ever filled in for the owner.
 /// </summary>
 public sealed record LibraryGameResponse(
     int AppId,
@@ -17,6 +18,7 @@ public sealed record LibraryGameResponse(
     BacklogStatus Status,
     int? Priority,
     string? Notes,
+    bool NotesPrivate,
     int? TimeToBeatMainMinutes,
     int? TimeToBeatMainExtrasMinutes,
     int? TimeToBeatCompletionistMinutes,

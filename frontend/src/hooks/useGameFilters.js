@@ -1,6 +1,6 @@
 import { useCallback, useMemo, useState } from "react";
 import { LEGACY_COMPLETED_BEFORE, STATUSES } from "@/lib/status";
-import { hasBound, matchesFilters } from "@/lib/filters";
+import { FILTERS_BY_ID, hasBound, matchesFilters } from "@/lib/filters";
 import { progressPercent, valueScore } from "@/lib/gameMath";
 
 export const PAGE_SIZES = [10, 20, 50, 100];
@@ -93,7 +93,18 @@ function matchesStatus(game, selectedStatuses, excludedStatuses) {
 }
 
 /** Older saved views name the old "Completed before" filter; it's the CompletedBefore status now. */
-const upgradeStatuses = (statuses) => [...new Set((statuses ?? []).map((status) => (status === LEGACY_COMPLETED_BEFORE ? "CompletedBefore" : status)))];
+const stringList = (value) => (Array.isArray(value) ? value.filter((item) => typeof item === "string") : []);
+const upgradeStatuses = (statuses) => [
+  ...new Set(stringList(statuses).map((status) => (status === LEGACY_COMPLETED_BEFORE ? "CompletedBefore" : status))),
+].filter((status) => STATUSES.includes(status));
+const booleanOrNull = (value) => (typeof value === "boolean" ? value : null);
+const directionOrNull = (value) => (value === "ascending" || value === "descending" ? value : null);
+const knownFilters = (value) =>
+  Object.fromEntries(
+    Object.entries(value && typeof value === "object" ? value : {}).filter(
+      ([id, bounds]) => FILTERS_BY_ID[id] && bounds && typeof bounds === "object"
+    )
+  );
 
 /**
  * All client-side list shaping: status selection, granular filters, sorting and pagination.
@@ -177,21 +188,23 @@ export function useGameFilters(games) {
   }, []);
 
   const applyConfiguration = useCallback((configuration) => {
+    // Configurations also arrive from shared links and older saved views, so each value is checked.
     const c = { ...DEFAULT_CONFIGURATION, ...configuration };
     setSelectedStatuses(upgradeStatuses(c.selectedStatuses));
     setExcludedStatuses(upgradeStatuses(c.excludedStatuses));
-    setActiveFilters(c.activeFilters ?? {});
-    setPlayedBeforeState(c.playedBefore ?? null);
-    setHasNotesState(c.hasNotes ?? null);
-    setGenresState(c.genres ?? []);
-    setDeckState(c.deckCompatibility ?? []);
-    setMultiplayerState(c.multiplayer ?? null);
-    setNotInterestedState(c.showNotInterested ?? null);
+    setActiveFilters(knownFilters(c.activeFilters));
+    setPlayedBeforeState(booleanOrNull(c.playedBefore));
+    setHasNotesState(booleanOrNull(c.hasNotes));
+    setGenresState(stringList(c.genres));
+    setDeckState(stringList(c.deckCompatibility));
+    setMultiplayerState(booleanOrNull(c.multiplayer));
+    setNotInterestedState(booleanOrNull(c.showNotInterested));
     // Older saved views stored a separate review-score order; fold it into the unified sort.
-    const legacyReviewOrder = c.reviewScoreOrder;
-    setSortColumn(c.tableSortColumn ?? (legacyReviewOrder ? "reviewScore" : null));
-    setSortDirection(c.tableSortDirection ?? legacyReviewOrder ?? null);
-    setSearchQueryState(c.searchQuery ?? "");
+    const legacyReviewOrder = directionOrNull(c.reviewScoreOrder);
+    const sortColumn = SORT_OPTIONS.some((option) => option.id === c.tableSortColumn) ? c.tableSortColumn : null;
+    setSortColumn(sortColumn ?? (legacyReviewOrder ? "reviewScore" : null));
+    setSortDirection((sortColumn && directionOrNull(c.tableSortDirection)) ?? legacyReviewOrder ?? null);
+    setSearchQueryState(typeof c.searchQuery === "string" ? c.searchQuery : "");
     setPageSizeState(PAGE_SIZES.includes(c.pageSize) ? c.pageSize : 20);
     setPage(1);
   }, []);

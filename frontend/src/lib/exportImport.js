@@ -8,6 +8,7 @@ const CSV_COLUMNS = [
   ["finishedHours", (g) => g.finishedHours ?? ""],
   ["priority", (g) => g.priority ?? ""],
   ["notes", (g) => g.notes ?? ""],
+  ["notesPrivate", (g) => (g.notesPrivate ? "yes" : "no")],
   ["steamHours", (g) => Math.round((g.playtimeForeverMinutes / 60) * 10) / 10],
   ["lastPlayedUtc", (g) => g.lastPlayedUtc ?? ""],
   ["reviewScore", (g) => g.reviewScore ?? ""],
@@ -40,13 +41,16 @@ export function exportJson(library) {
       finishedHours: g.finishedHours,
       priority: g.priority,
       notes: g.notes,
+      notesPrivate: g.notesPrivate,
     })),
   };
   download(`sift-${safeName(library.profile.personaName)}-${stamp()}.json`, "application/json", JSON.stringify(payload, null, 2));
 }
 
 const csvCell = (value) => {
-  const text = String(value);
+  let text = String(value);
+  // Notes and names starting with =, +, -, @ (or a tab/CR) would run as formulas in Excel.
+  if (/^[=+\-@\t\r]/.test(text)) text = `'${text}`;
   return /[",\n\r]/.test(text) ? `"${text.replace(/"/g, '""')}"` : text;
 };
 
@@ -91,7 +95,9 @@ function parseCsv(text) {
   }
   const [header = [], ...body] = rows.filter((r) => r.some((cell) => cell.trim()));
   const keys = header.map((h) => h.replace(/^﻿/, "").trim());
-  return body.map((cells) => Object.fromEntries(keys.map((key, index) => [key, cells[index] ?? ""])));
+  // Undo csvCell's formula guard, so an export imports back unchanged.
+  const unguard = (cell) => (/^'[=+\-@\t\r]/.test(cell) ? cell.slice(1) : cell);
+  return body.map((cells) => Object.fromEntries(keys.map((key, index) => [key, unguard(cells[index] ?? "")])));
 }
 
 function parseBoolean(value) {
@@ -165,6 +171,10 @@ export function planImport(rows, games) {
     if ("notes" in row) {
       const notes = String(row.notes ?? "").trim().slice(0, 2000);
       if (notes !== (game.notes ?? "").trim()) patch.notes = notes;
+    }
+    if ("notesPrivate" in row && row.notesPrivate !== "" && row.notesPrivate != null) {
+      const notesPrivate = parseBoolean(row.notesPrivate);
+      if (notesPrivate !== undefined && notesPrivate !== Boolean(game.notesPrivate)) patch.notesPrivate = notesPrivate;
     }
     if (Object.keys(patch).length) changes.push({ appId: game.appId, name: game.name, patch });
   });

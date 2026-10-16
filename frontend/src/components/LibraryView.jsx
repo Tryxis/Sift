@@ -183,11 +183,11 @@ function NonGamesBanner({ games, onOpen, onMarkNotApplicable, onDismiss }) {
   );
 }
 
-export function LibraryView({ library, newAppIds, isSyncing, onResync, onUpdateGame, onUpdateGames }) {
+export function LibraryView({ library, newAppIds, isSyncing, readOnly = false, onGoHome, homeLabel, onResync, onUpdateGame, onUpdateGames }) {
   const toast = useToast();
   const [urlView] = useState(readViewFromUrl);
   const filters = useGameFilters(library.games);
-  const savedViews = useSavedViews(library.profile.steamId, filters, { restoreSelection: !urlView });
+  const savedViews = useSavedViews(library.profile.steamId, filters, { restoreSelection: !urlView, readOnly });
   const [activeTab, setActiveTab] = useState("library");
   const [presentation, setPresentationState] = useState(readPresentation);
   const [showMobileFilters, setShowMobileFilters] = useState(false);
@@ -254,13 +254,14 @@ export function LibraryView({ library, newAppIds, isSyncing, onResync, onUpdateG
 
   const actions = useMemo(() => ({
     steamId: library.profile.steamId,
+    readOnly,
     games: library.games,
     newAppIds,
     queuePositions,
     openDetails: setDetailsAppId,
     updateGame,
     updateGames: onUpdateGames,
-  }), [library.profile.steamId, library.games, newAppIds, queuePositions, updateGame, onUpdateGames]);
+  }), [library.profile.steamId, readOnly, library.games, newAppIds, queuePositions, updateGame, onUpdateGames]);
 
   const detailsGame = detailsAppId == null ? null : library.games.find((game) => game.appId === detailsAppId) ?? null;
 
@@ -343,8 +344,8 @@ export function LibraryView({ library, newAppIds, isSyncing, onResync, onUpdateG
     updateGamesWithUndo(changes, `${changes.length} games added to Up Next`);
   };
 
-  // ---- Keyboard shortcuts ----
-  const statusKeys = Object.fromEntries(
+  // ---- Keyboard shortcuts (status keys only on your own library) ----
+  const statusKeys = readOnly ? {} : Object.fromEntries(
     STATUSES.map((status, index) => [
       String(index + 1),
       ({ appId }) => {
@@ -417,16 +418,19 @@ export function LibraryView({ library, newAppIds, isSyncing, onResync, onUpdateG
         profile={{ ...library.profile, gameCount: countedGames.length }}
         onResync={onResync}
         isSyncing={isSyncing}
+        readOnly={readOnly}
+        onGoHome={onGoHome}
+        homeLabel={homeLabel}
         actions={
           <DataMenu
             library={library}
             onShowShortcuts={() => setShowShortcuts(true)}
-            onApplyImport={(changes) => updateGamesWithUndo(changes, `Imported changes to ${changes.length} games`)}
+            onApplyImport={readOnly ? undefined : (changes) => updateGamesWithUndo(changes, `Imported changes to ${changes.length} games`)}
           />
         }
       />
       {!newBannerDismissed && <NewGamesBanner games={newGames} onOpen={setDetailsAppId} onDismiss={() => setNewBannerDismissed(true)} />}
-      <NonGamesBanner games={nonGames} onOpen={setDetailsAppId} onMarkNotApplicable={markNonGamesNotApplicable} onDismiss={dismissNonGames} />
+      <NonGamesBanner games={readOnly ? [] : nonGames} onOpen={setDetailsAppId} onMarkNotApplicable={markNonGamesNotApplicable} onDismiss={dismissNonGames} />
 
       <section className="relative z-10">
         <div
@@ -492,11 +496,12 @@ export function LibraryView({ library, newAppIds, isSyncing, onResync, onUpdateG
                 onClose={clearAll}
                 onStartSave={() => setIsSavingView(true)}
                 onCopyLink={copyLink}
+                readOnly={readOnly}
                 className="max-w-[8rem] shrink-0 px-3 sm:max-w-[16rem]"
               />
             </div>
 
-            {isSavingView && (
+            {isSavingView && !readOnly && (
               <SaveViewForm
                 defaultName={activePreset ? `${activePreset.name} (mine)` : ""}
                 onSave={async (name) => {
@@ -574,7 +579,7 @@ export function LibraryView({ library, newAppIds, isSyncing, onResync, onUpdateG
                 <PresentationToggle value={presentation} onChange={setPresentation} />
               </div>
 
-              {presentation === "table" && (
+              {presentation === "table" && !readOnly && (
                 <BulkActionsBar
                   count={visibleSelection.length}
                   matchingCount={filters.filteredCount}

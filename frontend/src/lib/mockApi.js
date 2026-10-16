@@ -1,5 +1,6 @@
-// In-memory stand-in for the API, enabled with `npm run dev:mock`.
-// Lets the UI be explored without a Steam key or a database.
+// In-memory stand-in for the API: the guest demo (/?guest, or "Continue as guest"), and every
+// build made with `npm run dev:mock` or `build:preview`. Needs no Steam key, database or sign-in,
+// and changes last only until the page reloads.
 const TITLES = [
   [620, "Portal 2"], [1145360, "Hades"], [413150, "Stardew Valley"], [367520, "Hollow Knight"],
   [1086940, "Baldur's Gate 3"], [292030, "The Witcher 3: Wild Hunt"], [1091500, "Cyberpunk 2077"],
@@ -30,7 +31,8 @@ const WISHLIST_TITLES = [
   [1675200, "Steamworld Build"],
 ];
 
-const MOCK_ID = "76561198000000042";
+/** The demo library a guest owns (and can change); other demo profiles are read-only, as in the real app. */
+export const DEMO_STEAM_ID = "76561198000000042";
 
 function seededRandom(seed) {
   let s = seed % 2147483647;
@@ -57,7 +59,7 @@ function achievements(random, minutes) {
 
 function buildLibrary(steamId) {
   const random = seededRandom(Number(steamId.slice(-6)) || 42);
-  const isDemoUser = steamId === MOCK_ID;
+  const isDemoUser = steamId === DEMO_STEAM_ID;
   // Other profiles own a random subset, so Compare has partial overlap to show.
   const titles = isDemoUser ? TITLES : TITLES.filter(() => random() < 0.6);
   const games = titles.map(([appId, name], i) => {
@@ -83,6 +85,7 @@ function buildLibrary(steamId) {
       finishedHours: null,
       priority: null,
       notes: isDemoUser && i % 11 === 3 ? "Friend recommended this — start on hard mode." : null,
+      notesPrivate: false,
       statusChangedUtc: null,
       notInterested: false,
       genres: GENRES[appId % GENRES.length],
@@ -108,11 +111,17 @@ function buildLibrary(steamId) {
   };
 }
 
+/** Identifiers the demo answers itself: its own SteamID, "demo", or the demo persona's name. */
+export function isDemoIdentifier(identifier) {
+  const trimmed = String(identifier ?? "").trim();
+  return !trimmed || trimmed === DEMO_STEAM_ID || /^(wren|demo)$/i.test(trimmed);
+}
+
 // Stable mock identities: a SteamID64 is used as-is, anything else hashes to a fake one.
 function mockSteamId(identifier) {
   const trimmed = identifier.trim();
   if (/^\d{17}$/.test(trimmed)) return trimmed;
-  if (!trimmed || /wren|demo/i.test(trimmed)) return MOCK_ID;
+  if (!trimmed || /wren|demo/i.test(trimmed)) return DEMO_STEAM_ID;
   let hash = 0;
   for (const char of trimmed.toLowerCase()) hash = (Math.imul(hash, 31) + char.charCodeAt(0)) >>> 0;
   return `7656119${String(hash % 1e10).padStart(10, "0")}`;
@@ -151,20 +160,9 @@ function viewsFor(steamId) {
   return savedViews.get(steamId);
 }
 
-const KEPT_FIELDS = ["status", "priority", "notes", "playedBefore", "finishedHours", "notInterested", "statusChangedUtc"];
+const KEPT_FIELDS = ["status", "priority", "notes", "notesPrivate", "playedBefore", "finishedHours", "notInterested", "statusChangedUtc"];
 
 export const mockApi = {
-  // Demo mode has no password gate.
-  async getAccessStatus() {
-    return { required: false, signedIn: true };
-  },
-
-  async signIn() {
-    return { required: false, signedIn: true };
-  },
-
-  async signOut() {},
-
   async syncProfile(identifier) {
     await delay(650);
     const steamId = mockSteamId(identifier);
@@ -177,7 +175,7 @@ export const mockApi = {
         const old = kept.get(g.appId);
         return old ? { ...g, ...Object.fromEntries(KEPT_FIELDS.map((key) => [key, old[key]])) } : g;
       });
-    } else if (steamId === MOCK_ID) {
+    } else if (steamId === DEMO_STEAM_ID) {
       histories.set(steamId, seedHistory(fresh));
     }
     store.set(steamId, fresh);

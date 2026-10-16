@@ -36,6 +36,7 @@ public sealed class ReviewScoreService(
             .Where(a => ownedAppIds.Contains(a.AppId))
             .Where(a => !db.ReviewSummaries.Any(r => r.AppId == a.AppId && r.LastCheckedUtc > cutoff))
             .OrderBy(a => db.ReviewSummaries.Any(r => r.AppId == a.AppId))
+            .ThenBy(a => db.ReviewSummaries.Where(r => r.AppId == a.AppId).Select(r => (DateTime?)r.LastCheckedUtc).FirstOrDefault())
             .ThenBy(a => a.AppId)
             .Select(a => a.AppId)
             .Take(enrichmentOptions.Value.MaxAppsPerRun)

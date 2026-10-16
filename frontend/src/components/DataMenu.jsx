@@ -1,10 +1,9 @@
 import { useRef, useState } from "react";
-import { Download, Keyboard, Lock, MoreHorizontal, Upload } from "lucide-react";
+import { Download, Keyboard, MoreHorizontal, Upload } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/components/ui/dialog";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { exportCsv, exportJson, planImport, readImportFile } from "@/lib/exportImport";
-import { useAccessControls } from "@/hooks/useAccess";
 
 function describePatch(patch) {
   return Object.entries(patch)
@@ -13,6 +12,7 @@ function describePatch(patch) {
       if (key === "notes") return value ? "notes" : "clear notes";
       if (key === "priority") return value ? `queue #${value}` : "remove from queue";
       if (key === "playedBefore") return `played before: ${value ? "yes" : "no"}`;
+      if (key === "notesPrivate") return value ? "notes private" : "notes public";
       if (key === "finishedHours") return `finished ${value} h`;
       return `${value}`;
     })
@@ -69,10 +69,12 @@ function ImportDialog({ plan, onCancel, onConfirm }) {
   );
 }
 
-/** Export/import and the shortcuts sheet, tucked behind a "…" button on the profile header. */
+/**
+ * Export/import and the shortcuts sheet, tucked behind a "…" button on the profile header.
+ * Without `onApplyImport` (someone else's library) there's no import.
+ */
 export function DataMenu({ library, onApplyImport, onShowShortcuts }) {
   const fileRef = useRef(null);
-  const access = useAccessControls();
   const [plan, setPlan] = useState(null);
   const [error, setError] = useState("");
 
@@ -105,22 +107,18 @@ export function DataMenu({ library, onApplyImport, onShowShortcuts }) {
             <Download className="h-3.5 w-3.5" aria-hidden="true" />
             Export spreadsheet (CSV)
           </DropdownMenuItem>
-          <DropdownMenuItem onSelect={() => fileRef.current?.click()}>
-            <Upload className="h-3.5 w-3.5" aria-hidden="true" />
-            Import JSON or CSV…
-          </DropdownMenuItem>
+          {onApplyImport && (
+            <DropdownMenuItem onSelect={() => fileRef.current?.click()}>
+              <Upload className="h-3.5 w-3.5" aria-hidden="true" />
+              Import JSON or CSV…
+            </DropdownMenuItem>
+          )}
           <DropdownMenuSeparator />
           <DropdownMenuItem onSelect={onShowShortcuts}>
             <Keyboard className="h-3.5 w-3.5" aria-hidden="true" />
             Keyboard shortcuts
             <kbd className="ml-auto text-xs text-muted-foreground">?</kbd>
           </DropdownMenuItem>
-          {access.required && (
-            <DropdownMenuItem onSelect={access.lock}>
-              <Lock className="h-3.5 w-3.5" aria-hidden="true" />
-              Lock (sign out on this device)
-            </DropdownMenuItem>
-          )}
         </DropdownMenuContent>
       </DropdownMenu>
       <input ref={fileRef} type="file" accept=".json,.csv,application/json,text/csv" className="hidden" onChange={handleFile} />

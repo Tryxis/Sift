@@ -24,6 +24,7 @@ public sealed class HowLongToBeatService(
     ILogger<HowLongToBeatService> logger) : IHowLongToBeatService
 {
     private const int MaxConsecutiveFailures = 3;
+    private const int MaxNameLength = 256;
 
     public async Task<int> RefreshStaleAsync(CancellationToken cancellationToken)
     {
@@ -40,7 +41,9 @@ public sealed class HowLongToBeatService(
         var apps = await db.Apps
             .Where(a => ownedAppIds.Contains(a.AppId))
             .Where(a => !db.HowLongToBeatEntries.Any(h => h.AppId == a.AppId && h.LastCheckedUtc > cutoff))
+            // Never-checked apps first, then the longest since checked.
             .OrderBy(a => db.HowLongToBeatEntries.Any(h => h.AppId == a.AppId))
+            .ThenBy(a => db.HowLongToBeatEntries.Where(h => h.AppId == a.AppId).Select(h => (DateTime?)h.LastCheckedUtc).FirstOrDefault())
             .ThenBy(a => a.AppId)
             .Select(a => new { a.AppId, a.Name })
             .Take(enrichmentOptions.Value.MaxAppsPerRun)
@@ -61,9 +64,11 @@ public sealed class HowLongToBeatService(
                 checkedCount++;
                 consecutiveFailures = 0;
             }
-            catch (HowLongToBeatException ex)
+            catch (Exception ex) when (ex is not OperationCanceledException || !cancellationToken.IsCancellationRequested)
             {
                 logger.LogWarning(ex, "HowLongToBeat lookup failed for {Name} ({AppId})", app.Name, app.AppId);
+                // A failed save stays tracked and would fail every later save in this run.
+                db.ChangeTracker.Clear();
                 if (++consecutiveFailures >= MaxConsecutiveFailures)
                 {
                     logger.LogWarning(
@@ -90,7 +95,8 @@ public sealed class HowLongToBeatService(
 
         entry.MatchStatus = match is null ? HowLongToBeatMatchStatus.NotFound : HowLongToBeatMatchStatus.Matched;
         entry.HowLongToBeatGameId = match?.GameId;
-        entry.HowLongToBeatName = match?.Name;
+        // how_long_to_beat_entries.HowLongToBeatName is varchar(256).
+        entry.HowLongToBeatName = match?.Name is { Length: > MaxNameLength } name ? name[..MaxNameLength] : match?.Name;
         entry.MainMinutes = ToMinutes(match?.MainSeconds);
         entry.MainExtrasMinutes = ToMinutes(match?.MainExtrasSeconds);
         entry.CompletionistMinutes = ToMinutes(match?.CompletionistSeconds);

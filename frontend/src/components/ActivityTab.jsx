@@ -51,7 +51,7 @@ export function ActivityTab({ games }) {
     const byLastPlayed = games.filter((game) => game.lastPlayedUtc).sort((a, b) => Date.parse(b.lastPlayedUtc) - Date.parse(a.lastPlayedUtc));
     const stalled = games
       .filter((game) => game.status === "Playing" && (daysSince(game.lastPlayedUtc) ?? Infinity) >= STALLED_AFTER_DAYS)
-      .sort((a, b) => (daysSince(b.lastPlayedUtc) ?? Infinity) - (daysSince(a.lastPlayedUtc) ?? Infinity));
+      .sort((a, b) => (daysSince(b.lastPlayedUtc) ?? Number.MAX_SAFE_INTEGER) - (daysSince(a.lastPlayedUtc) ?? Number.MAX_SAFE_INTEGER));
     return {
       recent,
       recentMinutes: recent.reduce((sum, game) => sum + game.playtimeTwoWeeksMinutes, 0),

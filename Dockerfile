@@ -24,6 +24,12 @@ FROM mcr.microsoft.com/dotnet/aspnet:8.0
 WORKDIR /app
 COPY --from=api /app ./
 ENV ASPNETCORE_ENVIRONMENT=Production
+# Hosts like Render terminate HTTPS at a proxy. Trusting its X-Forwarded-Proto/For headers makes the
+# app see the real scheme, so the sign-in cookie is Secure and Steam returns to an https:// URL.
+# Only safe because the container is reachable solely through that proxy.
+ENV ASPNETCORE_FORWARDEDHEADERS_ENABLED=true
+# The base image's unprivileged user; 8080 needs no root.
+USER $APP_UID
 EXPOSE 8080
 # Hosts like Render pass the port to listen on in $PORT; default to 8080 elsewhere.
 CMD ["sh", "-c", "ASPNETCORE_HTTP_PORTS=${PORT:-8080} exec dotnet Sift.Api.dll"]

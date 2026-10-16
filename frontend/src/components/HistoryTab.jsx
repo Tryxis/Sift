@@ -21,7 +21,7 @@ const monthLabel = (key, withYear = false) => {
   return new Date(year, month - 1, 1).toLocaleDateString("en-GB", { month: "short", ...(withYear ? { year: "numeric" } : {}) });
 };
 
-function useHistoryData(steamId, reloadKey) {
+function useHistoryData(steamId, statusSignature) {
   const [state, setState] = useState({ events: null, monthly: null, error: null });
   useEffect(() => {
     let cancelled = false;
@@ -32,7 +32,9 @@ function useHistoryData(steamId, reloadKey) {
     return () => {
       cancelled = true;
     };
-  }, [steamId, reloadKey]);
+    // statusSignature changes when a status changes elsewhere in the app: new events to show.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [steamId, statusSignature]);
   return state;
 }
 
@@ -409,16 +411,10 @@ function Timeline({ events }) {
 }
 
 export function HistoryTab({ steamId, games }) {
-  const [reloadKey, setReloadKey] = useState(0);
-  const { events, monthly, error } = useHistoryData(steamId, reloadKey);
+  const statusSignature = useMemo(() => games.map((game) => `${game.appId}:${game.status}`).join(","), [games]);
+  const { events, monthly, error } = useHistoryData(steamId, statusSignature);
   const thisYear = new Date().getFullYear();
   const [year, setYear] = useState(thisYear);
-
-  // Refresh when statuses change elsewhere in the app (new events to show).
-  const statusSignature = useMemo(() => games.map((game) => `${game.appId}:${game.status}`).join(","), [games]);
-  useEffect(() => {
-    setReloadKey((key) => key + 1);
-  }, [statusSignature]);
 
   const years = useMemo(() => {
     const found = new Set([thisYear]);

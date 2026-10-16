@@ -68,7 +68,7 @@ export function editionKey(name) {
     .toLocaleLowerCase()
     .replace(/[™®©]/g, "")
     .replace(/\b(game of the year|goty|definitive|special|enhanced|complete|anniversary|remastered|deluxe|ultimate|gold|legendary|director'?s cut|edition|classic|legacy|hd|vr)\b/g, "")
-    .replace(/[^a-z0-9]+/g, " ")
+    .replace(/[^\p{L}\p{N}]+/gu, " ")
     .replace(/\b(the|a|an)\b/g, "")
     .trim()
     .replace(/\s+/g, " ");

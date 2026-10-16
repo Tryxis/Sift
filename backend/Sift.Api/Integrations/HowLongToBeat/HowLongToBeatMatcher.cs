@@ -26,6 +26,8 @@ public static partial class HowLongToBeatMatcher
     public static HowLongToBeatGame? FindBestMatch(string steamName, IReadOnlyList<HowLongToBeatGame> candidates)
     {
         var target = Normalise(steamName);
+        // Deserialised JSON can carry a null name despite the non-nullable property.
+        candidates = candidates.Where(c => !string.IsNullOrWhiteSpace(c.Name)).ToList();
         if (target.Length == 0 || candidates.Count == 0)
         {
             return null;

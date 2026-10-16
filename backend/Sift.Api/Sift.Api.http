@@ -1,16 +1,30 @@
 @api = http://localhost:5080
 
+# Every endpoint except /api/health and /api/auth/* needs a signed-in session. Sign in through the
+# app (Sign in with Steam), then copy the sift_session cookie from the browser into @session.
+# Changes to a library are only accepted from its owner, and need the X-Sift-Request header.
+@session = paste-sift_session-cookie-here
+
+### Who am I signed in as?
+GET {{api}}/api/auth/session
+Cookie: sift_session={{session}}
+
 ### Sync any public profile (SteamID64, custom name, or profile URL)
 POST {{api}}/api/profiles/sync
 Content-Type: application/json
+Cookie: sift_session={{session}}
+X-Sift-Request: 1
 
 { "identifier": "gabelogannewell" }
 
-### Read a stored library
+### Read a stored library (anyone signed in)
 GET {{api}}/api/profiles/76561197960287930/library
+Cookie: sift_session={{session}}
 
-### Update a backlog entry
+### Update a backlog entry (403 unless this is your own SteamID)
 PATCH {{api}}/api/profiles/76561197960287930/games/620/backlog
 Content-Type: application/json
+Cookie: sift_session={{session}}
+X-Sift-Request: 1
 
 { "status": "Playing", "notes": "Co-op with Sam" }

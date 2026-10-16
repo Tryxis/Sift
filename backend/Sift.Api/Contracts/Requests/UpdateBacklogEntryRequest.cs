@@ -18,6 +18,9 @@ public sealed record UpdateBacklogEntryRequest
     [MaxLength(BacklogEntry.NotesMaxLength)]
     public string? Notes { get; init; }
 
+    /// <summary>True keeps the notes visible to the owner only.</summary>
+    public bool? NotesPrivate { get; init; }
+
     public bool? PlayedBefore { get; init; }
 
     [Range(typeof(decimal), "0", "1000000")]

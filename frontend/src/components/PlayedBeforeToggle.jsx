@@ -1,4 +1,15 @@
+import { useGameActions } from "./GameActions";
+
 export function PlayedBeforeToggle({ playedBefore, onChange, ariaLabel }) {
+  const { readOnly } = useGameActions();
+  if (readOnly) {
+    return (
+      <span className="flex h-8 w-full items-center justify-center rounded-well border border-border px-2 text-sm text-muted-foreground" aria-label={`${ariaLabel}: ${playedBefore ? "yes" : "no"}`}>
+        {playedBefore ? "Y" : "N"}
+      </span>
+    );
+  }
+
   return (
     <div
       className="relative grid h-8 w-full grid-cols-2 overflow-hidden rounded-well border border-border-strong bg-abyss p-0"

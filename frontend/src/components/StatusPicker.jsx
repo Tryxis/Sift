@@ -3,6 +3,7 @@ import { Check, ChevronDown } from "lucide-react";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { STATUSES, STATUS_META, getStatusMeta } from "@/lib/status";
 import { cn } from "@/lib/utils";
+import { useGameActions } from "./GameActions";
 
 const TRIGGER_STYLES = {
   // Bare dot with a generous touch target (table rows).
@@ -49,8 +50,47 @@ export function StatusPicker({ status, onChange, variant = "dot", gameName }) {
   const currentMeta = getStatusMeta(status);
   const isInline = variant === "inline";
   const labelFits = useLabelFits(isInline, currentMeta.label, containerRef, triggerRef, labelRef);
+  const { readOnly } = useGameActions();
 
-  const picker = (
+  const display = (
+    <>
+      <span
+        className={cn(
+          "h-3 w-3 shrink-0 rounded-full ring-2 ring-transparent ring-offset-2 ring-offset-card transition-shadow",
+          !readOnly && "group-hover:ring-muted-foreground/70 group-data-[state=open]:ring-foreground/80",
+          variant === "dot" && "h-3.5 w-3.5",
+          currentMeta.dotClass
+        )}
+      />
+      {variant === "boxed" && (
+        <>
+          <span className="min-w-0 flex-1 truncate text-left">{currentMeta.label}</span>
+          {!readOnly && <ChevronDown className="h-3 w-3 shrink-0 text-muted-foreground" aria-hidden="true" />}
+        </>
+      )}
+      {isInline && (
+        <span
+          ref={labelRef}
+          aria-hidden="true"
+          className={cn("order-first whitespace-nowrap", !labelFits && "-mr-1.5 max-w-0 overflow-hidden")}
+        >
+          {currentMeta.label}
+        </span>
+      )}
+    </>
+  );
+
+  const picker = readOnly ? (
+    <span
+      ref={triggerRef}
+      role="img"
+      aria-label={`Status${gameName ? ` for ${gameName}` : ""}: ${currentMeta.label}`}
+      title={currentMeta.label}
+      className={cn(TRIGGER_STYLES[variant], "cursor-default hover:text-muted-foreground")}
+    >
+      {display}
+    </span>
+  ) : (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
         <button
@@ -60,28 +100,7 @@ export function StatusPicker({ status, onChange, variant = "dot", gameName }) {
           title={currentMeta.label}
           className={TRIGGER_STYLES[variant]}
         >
-          <span
-            className={cn(
-              "h-3 w-3 shrink-0 rounded-full ring-2 ring-transparent ring-offset-2 ring-offset-card transition-shadow group-hover:ring-muted-foreground/70 group-data-[state=open]:ring-foreground/80",
-              variant === "dot" && "h-3.5 w-3.5",
-              currentMeta.dotClass
-            )}
-          />
-          {variant === "boxed" && (
-            <>
-              <span className="min-w-0 flex-1 truncate text-left">{currentMeta.label}</span>
-              <ChevronDown className="h-3 w-3 shrink-0 text-muted-foreground" aria-hidden="true" />
-            </>
-          )}
-          {isInline && (
-            <span
-              ref={labelRef}
-              aria-hidden="true"
-              className={cn("order-first whitespace-nowrap", !labelFits && "-mr-1.5 max-w-0 overflow-hidden")}
-            >
-              {currentMeta.label}
-            </span>
-          )}
+          {display}
         </button>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end" className="w-44">

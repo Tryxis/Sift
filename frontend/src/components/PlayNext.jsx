@@ -42,7 +42,10 @@ function rankScore(game, weights) {
   return (quality * weights.quality + shortness * weights.shortness + confidence * weights.confidence) / total;
 }
 
-function QueueList({ queue, onUpdateGames, onOpen }) {
+function QueueList({ queue, onUpdateGames, onOpen, readOnly }) {
+  if (!queue.length && readOnly) {
+    return <p className="rounded-card border border-dashed border-border-strong p-4 text-sm text-muted-foreground">Nothing queued.</p>;
+  }
   if (!queue.length) {
     return (
       <p className="rounded-card border border-dashed border-border-strong p-4 text-sm text-muted-foreground">
@@ -61,17 +64,19 @@ function QueueList({ queue, onUpdateGames, onOpen }) {
           <span className="hidden shrink-0 text-xs tabular-nums text-muted-foreground sm:inline">
             {game.timeToBeatMainMinutes == null ? "" : formatHours(game.timeToBeatMainMinutes)}
           </span>
-          <div className="flex shrink-0">
-            <Button variant="ghost" size="icon" aria-label={`Move ${game.name} earlier`} disabled={index === 0} onClick={() => onUpdateGames(moveInQueue(queue, index, index - 1))}>
-              <ArrowUp className="h-4 w-4" />
-            </Button>
-            <Button variant="ghost" size="icon" aria-label={`Move ${game.name} later`} disabled={index === queue.length - 1} onClick={() => onUpdateGames(moveInQueue(queue, index, index + 1))}>
-              <ArrowDown className="h-4 w-4" />
-            </Button>
-            <Button variant="ghost" size="icon" aria-label={`Remove ${game.name} from Up Next`} onClick={() => onUpdateGames([{ appId: game.appId, patch: { priority: 0 } }])}>
-              <X className="h-4 w-4" />
-            </Button>
-          </div>
+          {!readOnly && (
+            <div className="flex shrink-0">
+              <Button variant="ghost" size="icon" aria-label={`Move ${game.name} earlier`} disabled={index === 0} onClick={() => onUpdateGames(moveInQueue(queue, index, index - 1))}>
+                <ArrowUp className="h-4 w-4" />
+              </Button>
+              <Button variant="ghost" size="icon" aria-label={`Move ${game.name} later`} disabled={index === queue.length - 1} onClick={() => onUpdateGames(moveInQueue(queue, index, index + 1))}>
+                <ArrowDown className="h-4 w-4" />
+              </Button>
+              <Button variant="ghost" size="icon" aria-label={`Remove ${game.name} from Up Next`} onClick={() => onUpdateGames([{ appId: game.appId, patch: { priority: 0 } }])}>
+                <X className="h-4 w-4" />
+              </Button>
+            </div>
+          )}
         </li>
       ))}
     </ol>
@@ -108,7 +113,7 @@ function WeightsPanel({ weights, onChange }) {
 
 /** Unplayed, rated backlog games ranked by adjustable weights. Uses the filter scope, not the status filter. */
 export function PlayNext({ games, allGames }) {
-  const { openDetails, updateGames } = useGameActions();
+  const { openDetails, updateGames, readOnly } = useGameActions();
   const [length, setLength] = useState("any");
   const [weights, setWeightsState] = useState(readWeights);
   const [showWeights, setShowWeights] = useState(false);
@@ -156,9 +161,11 @@ export function PlayNext({ games, allGames }) {
       <section className="space-y-3">
         <div>
           <h2 className="text-lg font-semibold">Up Next</h2>
-          <p className="text-sm text-muted-foreground">Your own running order. Shown as a badge on cards and saved with your library.</p>
+          <p className="text-sm text-muted-foreground">
+            {readOnly ? "This library's running order." : "Your own running order. Shown as a badge on cards and saved with your library."}
+          </p>
         </div>
-        <QueueList queue={queue} onUpdateGames={updateGames} onOpen={openDetails} />
+        <QueueList queue={queue} onUpdateGames={updateGames} onOpen={openDetails} readOnly={readOnly} />
       </section>
 
       <section className="space-y-3">
@@ -223,26 +230,30 @@ export function PlayNext({ games, allGames }) {
                     <span className="hidden sm:inline" title="Ranking score">Match {Math.round(score * 100)}</span>
                   </span>
                 </button>
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  className="shrink-0"
-                  aria-label={`Not interested in ${game.name}`}
-                  title="Not interested: hide from suggestions"
-                  onClick={() => setNotInterested(game.appId, true)}
-                >
-                  <EyeOff className="h-4 w-4" />
-                </Button>
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  className="-ml-2 shrink-0"
-                  aria-label={`Add ${game.name} to Up Next`}
-                  title="Add to Up Next"
-                  onClick={() => updateGames([{ appId: game.appId, patch: addToQueuePatch(allGames) }])}
-                >
-                  <ListPlus className="h-4 w-4" />
-                </Button>
+                {!readOnly && (
+                  <>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="shrink-0"
+                      aria-label={`Not interested in ${game.name}`}
+                      title="Not interested: hide from suggestions"
+                      onClick={() => setNotInterested(game.appId, true)}
+                    >
+                      <EyeOff className="h-4 w-4" />
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="-ml-2 shrink-0"
+                      aria-label={`Add ${game.name} to Up Next`}
+                      title="Add to Up Next"
+                      onClick={() => updateGames([{ appId: game.appId, patch: addToQueuePatch(allGames) }])}
+                    >
+                      <ListPlus className="h-4 w-4" />
+                    </Button>
+                  </>
+                )}
               </li>
             ))}
           </ol>
@@ -271,10 +282,12 @@ export function PlayNext({ games, allGames }) {
                     <button type="button" onClick={() => openDetails(game.appId)} className="min-w-0 truncate text-left text-sm text-muted-foreground hover:text-foreground hover:underline">
                       {game.name}
                     </button>
-                    <Button variant="ghost" size="sm" onClick={() => setNotInterested(game.appId, false)}>
-                      <Undo2 className="h-3.5 w-3.5" aria-hidden="true" />
-                      Restore
-                    </Button>
+                    {!readOnly && (
+                      <Button variant="ghost" size="sm" onClick={() => setNotInterested(game.appId, false)}>
+                        <Undo2 className="h-3.5 w-3.5" aria-hidden="true" />
+                        Restore
+                      </Button>
+                    )}
                   </li>
                 ))}
               </ul>

@@ -1,10 +1,8 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { api } from "@/lib/api";
 
-const LAST_PROFILE_KEY = "sift:lastProfile";
-
-// Remembered in the URL (shareable, survives refresh) and in localStorage
-// (so the home-screen app, which always opens at "/", reopens on your library).
+// The open profile is kept in the URL (shareable, survives refresh). Without one, Sift opens
+// on the signed-in user's own library.
 function rememberProfile(steamId) {
   try {
     const url = new URL(window.location.href);
@@ -13,21 +11,10 @@ function rememberProfile(steamId) {
   } catch {
     /* sandboxed environments may block history; not essential */
   }
-  try {
-    localStorage.setItem(LAST_PROFILE_KEY, steamId);
-  } catch {
-    /* storage unavailable (private mode); not essential */
-  }
 }
 
 function recallProfile() {
-  const fromUrl = new URLSearchParams(window.location.search).get("profile");
-  if (fromUrl) return fromUrl;
-  try {
-    return localStorage.getItem(LAST_PROFILE_KEY);
-  } catch {
-    return null;
-  }
+  return new URLSearchParams(window.location.search).get("profile");
 }
 
 function replaceGame(library, appId, next) {
@@ -99,7 +86,11 @@ async function runWithConcurrency(items, limit, worker) {
   return results;
 }
 
-export function useLibrary() {
+/**
+ * `homeIdentifier` is the library to open first: the user's own, or the guest demo's. With
+ * `openFromUrl` a ?profile= in the address wins (a refresh or shared link reopens that profile).
+ */
+export function useLibrary({ homeIdentifier, openFromUrl = true }) {
   const [library, setLibraryState] = useState(null);
   const [newAppIds, setNewAppIds] = useState(() => new Set());
   const [isSyncing, setIsSyncing] = useState(false);
@@ -125,10 +116,10 @@ export function useLibrary() {
     }
   }, [setLibrary]);
 
-  // Reopening the app shows the last profile straight away from the stored copy, then
-  // refreshes from Steam in the background if that copy is more than 12 hours old.
+  // Opening the app shows the profile straight away from the stored copy, then refreshes
+  // from Steam in the background if that copy is more than 12 hours old.
   useEffect(() => {
-    const steamId = recallProfile();
+    const steamId = (openFromUrl && recallProfile()) || homeIdentifier;
     if (!steamId) return;
     api
       .getLibrary(steamId)
@@ -137,8 +128,10 @@ export function useLibrary() {
         const age = Date.now() - Date.parse(stored.profile.lastSyncedUtc ?? 0);
         if (navigator.onLine !== false && !(age < STALE_AFTER_MS)) lookUp(steamId);
       })
-      .catch((e) => (e.status === 404 ? lookUp(steamId) : setError(e.message)));
-  }, [lookUp, setLibrary]);
+      .catch((e) => (e.status === 404 || e.status === 400 ? lookUp(steamId) : setError(e.message)));
+    // Only the first load reads the URL.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [homeIdentifier, lookUp, setLibrary]);
 
   useEffect(() => {
     const update = () => setIsOffline(navigator.onLine === false);
@@ -153,6 +146,8 @@ export function useLibrary() {
   const resync = useCallback(() => {
     if (library) lookUp(library.profile.steamId);
   }, [library, lookUp]);
+
+  const goHome = useCallback(() => lookUp(homeIdentifier), [homeIdentifier, lookUp]);
 
   // Read through a ref so the update callbacks keep a stable identity and don't re-render every card.
   const libraryRef = useRef(library);
@@ -208,5 +203,5 @@ export function useLibrary() {
 
   const dismissError = useCallback(() => setError(null), []);
 
-  return { library, newAppIds, isSyncing, isOffline, error, dismissError, lookUp, resync, updateGame, updateGames };
+  return { library, newAppIds, isSyncing, isOffline, error, dismissError, lookUp, resync, goHome, updateGame, updateGames };
 }
