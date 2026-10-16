@@ -11,7 +11,7 @@ import { SessionContext, useSession } from "@/hooks/useSession";
 import { useLibrary } from "@/hooks/useLibrary";
 
 function Sift({ session }) {
-  const { library, newAppIds, isSyncing, isOffline, error, dismissError, lookUp, resync, goHome, updateGame, updateGames } =
+  const { library, newAppIds, isSyncing, isOpening, isOffline, error, dismissError, lookUp, resync, goHome, updateGame, updateGames } =
     // A guest always starts on the demo library, whatever profile the address names.
     useLibrary({ homeIdentifier: session.steamId, openFromUrl: !session.isGuest });
   // Only the owner changes a library; everyone else (and a guest looking beyond the demo) sees it read-only.
@@ -46,7 +46,7 @@ function Sift({ session }) {
           onUpdateGames={updateGames}
         />
       ) : (
-        <Landing onSearch={lookUp} onLoadHome={goHome} isBusy={isSyncing} />
+        <Landing onSearch={lookUp} onLoadHome={goHome} isBusy={isSyncing || isOpening} hasError={Boolean(error)} />
       )}
     </>
   );

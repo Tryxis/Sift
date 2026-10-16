@@ -94,6 +94,8 @@ export function useLibrary({ homeIdentifier, openFromUrl = true }) {
   const [library, setLibraryState] = useState(null);
   const [newAppIds, setNewAppIds] = useState(() => new Set());
   const [isSyncing, setIsSyncing] = useState(false);
+  // True while the first stored copy is being fetched, before any sync has started.
+  const [isOpening, setIsOpening] = useState(true);
   const [error, setError] = useState(null);
   const [isOffline, setIsOffline] = useState(() => typeof navigator !== "undefined" && navigator.onLine === false);
 
@@ -120,7 +122,11 @@ export function useLibrary({ homeIdentifier, openFromUrl = true }) {
   // from Steam in the background if that copy is more than 12 hours old.
   useEffect(() => {
     const steamId = (openFromUrl && recallProfile()) || homeIdentifier;
-    if (!steamId) return;
+    if (!steamId) {
+      setIsOpening(false);
+      return;
+    }
+    setIsOpening(true);
     api
       .getLibrary(steamId)
       .then((stored) => {
@@ -128,7 +134,8 @@ export function useLibrary({ homeIdentifier, openFromUrl = true }) {
         const age = Date.now() - Date.parse(stored.profile.lastSyncedUtc ?? 0);
         if (navigator.onLine !== false && !(age < STALE_AFTER_MS)) lookUp(steamId);
       })
-      .catch((e) => (e.status === 404 || e.status === 400 ? lookUp(steamId) : setError(e.message)));
+      .catch((e) => (e.status === 404 || e.status === 400 ? lookUp(steamId) : setError(e.message)))
+      .finally(() => setIsOpening(false));
     // Only the first load reads the URL.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [homeIdentifier, lookUp, setLibrary]);
@@ -203,5 +210,5 @@ export function useLibrary({ homeIdentifier, openFromUrl = true }) {
 
   const dismissError = useCallback(() => setError(null), []);
 
-  return { library, newAppIds, isSyncing, isOffline, error, dismissError, lookUp, resync, goHome, updateGame, updateGames };
+  return { library, newAppIds, isSyncing, isOpening, isOffline, error, dismissError, lookUp, resync, goHome, updateGame, updateGames };
 }

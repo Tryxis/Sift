@@ -1,12 +1,32 @@
+import { useEffect, useState } from "react";
+import { Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { ProfileSearch } from "./ProfileSearch";
 
+// How long to keep showing the loading state before deciding the library didn't load,
+// unless an error arrives sooner.
+const GRACE_MS = 8000;
+
 /** Shown while the first library loads, or if it couldn't be loaded (the error banner says why). */
-export function Landing({ onSearch, onLoadHome, isBusy }) {
-  if (isBusy) {
+export function Landing({ onSearch, onLoadHome, isBusy, hasError }) {
+  const [graceOver, setGraceOver] = useState(false);
+
+  useEffect(() => {
+    const timer = setTimeout(() => setGraceOver(true), GRACE_MS);
+    return () => clearTimeout(timer);
+  }, []);
+
+  if (isBusy || (!hasError && !graceOver)) {
     return (
-      <section className="relative z-10 flex min-h-[60vh] flex-col justify-center py-16" aria-busy="true">
-        <p className="font-display text-3xl font-light tracking-tight text-muted-foreground">Loading your library…</p>
+      <section
+        className="relative z-10 flex min-h-[60vh] flex-col items-center justify-center gap-4 py-16 text-center"
+        aria-busy="true"
+      >
+        <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" aria-hidden="true" />
+        <p role="status" className="font-display text-3xl font-light tracking-tight text-muted-foreground">
+          Loading library…
+        </p>
+        <p className="text-sm text-muted-foreground">Fetching from Steam can take a few seconds.</p>
       </section>
     );
   }
