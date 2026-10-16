@@ -5,6 +5,7 @@ import { GuestNotice } from "@/components/GuestNotice";
 import { Landing } from "@/components/Landing";
 import { LibraryView } from "@/components/LibraryView";
 import { SignInScreen } from "@/components/SignInScreen";
+import { SiteFooter } from "@/components/SiteFooter";
 import { ToastProvider } from "@/components/ui/toast";
 import { SessionContext, useSession } from "@/hooks/useSession";
 import { useLibrary } from "@/hooks/useLibrary";
@@ -69,6 +70,7 @@ export default function App() {
                 <SignInScreen onSignIn={session.signIn} onContinueAsGuest={session.continueAsGuest} />
               </>
             )}
+            {session.status !== "checking" && <SiteFooter />}
           </div>
         </div>
       </SessionContext.Provider>
