@@ -122,6 +122,30 @@ namespace Sift.Api.Migrations
                     b.ToTable("backlog_entries", (string)null);
                 });
 
+            modelBuilder.Entity("Sift.Api.Domain.Entities.FavouriteProfile", b =>
+                {
+                    b.Property<string>("OwnerSteamId")
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)");
+
+                    b.Property<string>("SteamId")
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)");
+
+                    b.Property<DateTime>("AddedUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("Alias")
+                        .HasMaxLength(40)
+                        .HasColumnType("character varying(40)");
+
+                    b.HasKey("OwnerSteamId", "SteamId");
+
+                    b.HasIndex("SteamId");
+
+                    b.ToTable("favourite_profiles", (string)null);
+                });
+
             modelBuilder.Entity("Sift.Api.Domain.Entities.HowLongToBeatEntry", b =>
                 {
                     b.Property<int>("AppId")
@@ -489,6 +513,25 @@ namespace Sift.Api.Migrations
                         .IsRequired();
 
                     b.Navigation("App");
+
+                    b.Navigation("Profile");
+                });
+
+            modelBuilder.Entity("Sift.Api.Domain.Entities.FavouriteProfile", b =>
+                {
+                    b.HasOne("Sift.Api.Domain.Entities.SteamProfile", "Owner")
+                        .WithMany()
+                        .HasForeignKey("OwnerSteamId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("Sift.Api.Domain.Entities.SteamProfile", "Profile")
+                        .WithMany()
+                        .HasForeignKey("SteamId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Owner");
 
                     b.Navigation("Profile");
                 });

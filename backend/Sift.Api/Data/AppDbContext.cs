@@ -11,6 +11,7 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
     public DbSet<OwnedGame> OwnedGames => Set<OwnedGame>();
     public DbSet<BacklogEntry> BacklogEntries => Set<BacklogEntry>();
     public DbSet<SavedFilterView> SavedFilterViews => Set<SavedFilterView>();
+    public DbSet<FavouriteProfile> FavouriteProfiles => Set<FavouriteProfile>();
     public DbSet<HowLongToBeatEntry> HowLongToBeatEntries => Set<HowLongToBeatEntry>();
     public DbSet<SteamReviewSummary> ReviewSummaries => Set<SteamReviewSummary>();
     public DbSet<StatusChange> StatusChanges => Set<StatusChange>();

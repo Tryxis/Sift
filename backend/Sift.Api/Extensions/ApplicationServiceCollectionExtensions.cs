@@ -16,6 +16,7 @@ public static class ApplicationServiceCollectionExtensions
         services.AddScoped<ILibrarySyncService, LibrarySyncService>();
         services.AddScoped<IBacklogService, BacklogService>();
         services.AddScoped<ISavedFilterViewService, SavedFilterViewService>();
+        services.AddScoped<IFavouriteProfileService, FavouriteProfileService>();
         services.AddScoped<IAppDetailsService, AppDetailsService>();
         services.AddScoped<IAchievementService, AchievementService>();
         services.AddScoped<IWishlistService, WishlistService>();
