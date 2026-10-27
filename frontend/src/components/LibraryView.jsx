@@ -183,7 +183,7 @@ function NonGamesBanner({ games, onOpen, onMarkNotApplicable, onDismiss }) {
   );
 }
 
-export function LibraryView({ library, newAppIds, isSyncing, readOnly = false, onGoHome, homeLabel, onResync, onUpdateGame, onUpdateGames }) {
+export function LibraryView({ library, newAppIds, isSyncing, readOnly = false, onOpenProfile, onGoHome, homeLabel, onResync, onUpdateGame, onUpdateGames }) {
   const toast = useToast();
   const [urlView] = useState(readViewFromUrl);
   const filters = useGameFilters(library.games);
@@ -254,6 +254,7 @@ export function LibraryView({ library, newAppIds, isSyncing, readOnly = false, o
 
   const actions = useMemo(() => ({
     steamId: library.profile.steamId,
+    profileName: library.profile.personaName,
     readOnly,
     games: library.games,
     newAppIds,
@@ -261,7 +262,7 @@ export function LibraryView({ library, newAppIds, isSyncing, readOnly = false, o
     openDetails: setDetailsAppId,
     updateGame,
     updateGames: onUpdateGames,
-  }), [library.profile.steamId, readOnly, library.games, newAppIds, queuePositions, updateGame, onUpdateGames]);
+  }), [library.profile.steamId, library.profile.personaName, readOnly, library.games, newAppIds, queuePositions, updateGame, onUpdateGames]);
 
   const detailsGame = detailsAppId == null ? null : library.games.find((game) => game.appId === detailsAppId) ?? null;
 
@@ -649,7 +650,7 @@ export function LibraryView({ library, newAppIds, isSyncing, readOnly = false, o
         )}
         {activeTab === "compare" && (
           <div id="view-panel-compare" role="tabpanel" aria-labelledby="view-tab-compare">
-            <CompareTab profile={library.profile} games={countedGames} />
+            <CompareTab profile={library.profile} games={countedGames} onOpenProfile={onOpenProfile} />
           </div>
         )}
         {activeTab === "metrics" && (

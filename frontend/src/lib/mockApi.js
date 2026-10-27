@@ -31,6 +31,15 @@ const WISHLIST_TITLES = [
   [1675200, "Steamworld Build"],
 ];
 
+// Public notes other demo profiles leave, so a favourite's comments show up in the guest's game details.
+const FRIEND_NOTES = [
+  "Play this with a friend, it's twice as good.",
+  "Don't skip the side quests, they're the best part.",
+  "Gave up on the final boss. Maybe one day.",
+  "Easily my game of the year.",
+  "Hard mode from the start, trust me.",
+];
+
 /** The demo library a guest owns (and can change); other demo profiles are read-only, as in the real app. */
 export const DEMO_STEAM_ID = "76561198000000042";
 
@@ -84,7 +93,9 @@ function buildLibrary(steamId) {
       playedBefore: random() < 0.3,
       finishedHours: null,
       priority: null,
-      notes: isDemoUser && i % 11 === 3 ? "Friend recommended this — start on hard mode." : null,
+      notes: isDemoUser
+        ? (i % 11 === 3 ? "Friend recommended this — start on hard mode." : null)
+        : minutes && ((Math.imul(appId, 2654435761) >>> 20) + Number(steamId.slice(-3))) % 4 === 0 ? FRIEND_NOTES[(Math.imul(appId, 2654435761) >>> 24) % FRIEND_NOTES.length] : null,
       notesPrivate: false,
       statusChangedUtc: null,
       notInterested: false,
@@ -153,7 +164,13 @@ const monthKey = (date) => `${date.getUTCFullYear()}-${String(date.getUTCMonth()
 const store = new Map();
 const histories = new Map();
 const savedViews = new Map();
+const favourites = new Map();
 const delay = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+
+function favouritesFor(steamId) {
+  if (!favourites.has(steamId)) favourites.set(steamId, []);
+  return favourites.get(steamId);
+}
 
 function viewsFor(steamId) {
   if (!savedViews.has(steamId)) savedViews.set(steamId, []);
@@ -264,6 +281,49 @@ export const mockApi = {
     const index = views.findIndex((view) => view.id === id);
     if (index === -1) throw new Error("Saved filter view not found.");
     views.splice(index, 1);
+  },
+
+  async getFavourites(steamId) {
+    await delay(100);
+    return structuredClone(favouritesFor(steamId));
+  },
+
+  async saveFavourite(steamId, favouriteSteamId, alias) {
+    await delay(100);
+    if (favouriteSteamId === steamId) throw new Error("You can't favourite your own profile.");
+    // A guest may star a real profile the server looked up; the caller already knows its name.
+    const profile = store.get(favouriteSteamId)?.profile ?? { personaName: null, avatarUrl: null };
+    const list = favouritesFor(steamId);
+    let favourite = list.find((item) => item.steamId === favouriteSteamId);
+    if (!favourite) {
+      favourite = { steamId: favouriteSteamId, personaName: profile.personaName, avatarUrl: profile.avatarUrl, addedUtc: new Date().toISOString() };
+      list.push(favourite);
+    }
+    favourite.alias = alias?.trim() || null;
+    return structuredClone(favourite);
+  },
+
+  async deleteFavourite(steamId, favouriteSteamId) {
+    await delay(100);
+    favourites.set(steamId, favouritesFor(steamId).filter((item) => item.steamId !== favouriteSteamId));
+  },
+
+  async getFavouriteNotes(steamId, appId) {
+    await delay(150);
+    return favouritesFor(steamId).flatMap((favourite) => {
+      const game = store.get(favourite.steamId)?.games.find((g) => g.appId === appId);
+      if (!game?.notes || game.notesPrivate) return [];
+      return [{
+        steamId: favourite.steamId,
+        alias: favourite.alias,
+        personaName: favourite.personaName,
+        avatarUrl: favourite.avatarUrl,
+        notes: game.notes,
+        status: game.status,
+        playtimeForeverMinutes: game.playtimeForeverMinutes,
+        updatedUtc: game.statusChangedUtc ?? new Date().toISOString(),
+      }];
+    });
   },
 
   async getAppDetails(appId) {

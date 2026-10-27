@@ -13,7 +13,10 @@ import { useGameActions } from "./GameActions";
 
 const MONTHS = 24;
 const TIMELINE_PAGE = 60;
-const FINISHED_SHOWN = 6;
+const SHELF_SHOWN = 6;
+
+/** Statuses that mean a decision was made about a game: it's been sifted out of the backlog. */
+const SIFTED_STATUSES = ["Completed", "CompletedBefore", "Abandoned", "Problem", "NotApplicable"];
 
 const monthKey = (date) => `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}`;
 const monthLabel = (key, withYear = false) => {
@@ -21,7 +24,7 @@ const monthLabel = (key, withYear = false) => {
   return new Date(year, month - 1, 1).toLocaleDateString("en-GB", { month: "short", ...(withYear ? { year: "numeric" } : {}) });
 };
 
-function useHistoryData(steamId, statusSignature) {
+function useHistoryData(steamId, statusSignature, reloadKey) {
   const [state, setState] = useState({ events: null, monthly: null, error: null });
   useEffect(() => {
     let cancelled = false;
@@ -34,32 +37,48 @@ function useHistoryData(steamId, statusSignature) {
     };
     // statusSignature changes when a status changes elsewhere in the app: new events to show.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [steamId, statusSignature]);
+  }, [steamId, statusSignature, reloadKey]);
   return state;
 }
 
-/** Latest event per game that landed on `status` within the year. */
-function finishesIn(events, status, year) {
-  const byGame = new Map();
+/**
+ * Games sifted in the year: each game's latest status change that year, kept when it landed on a
+ * decision (finished, abandoned, problem, other). A game that went Playing → Completed counts once, as
+ * Completed; one moved back to Backlog or Playing by the end of the year isn't counted.
+ */
+function siftedIn(events, year) {
+  const latest = new Map();
   events.forEach((event) => {
-    if (event.toStatus !== status || new Date(event.changedUtc).getFullYear() !== year) return;
-    const existing = byGame.get(event.appId);
-    if (!existing || Date.parse(event.changedUtc) > Date.parse(existing.changedUtc)) byGame.set(event.appId, event);
+    if (new Date(event.changedUtc).getFullYear() !== year) return;
+    const existing = latest.get(event.appId);
+    if (!existing || Date.parse(event.changedUtc) > Date.parse(existing.changedUtc)) latest.set(event.appId, event);
   });
-  return [...byGame.values()];
+  return [...latest.values()].filter((event) => SIFTED_STATUSES.includes(event.toStatus));
 }
 
-function Tile({ title, value, detail }) {
-  return (
-    <Card>
+function Tile({ title, value, detail, onClick, isSelected, className, wrapDetail = false }) {
+  const card = (
+    <Card className={cn("h-full transition-colors", isSelected && "border-foreground/50", !onClick && className)}>
       <CardHeader className="p-4 pb-1.5 sm:p-5 sm:pb-2">
         <CardTitle>{title}</CardTitle>
       </CardHeader>
       <CardContent className="p-4 pt-0 sm:p-5 sm:pt-0">
         <p className="truncate font-display text-2xl font-light tracking-tight sm:text-3xl">{value}</p>
-        {detail && <p className="mt-1 truncate text-xs text-muted-foreground">{detail}</p>}
+        {detail && <p className={cn("mt-1 text-xs text-muted-foreground", wrapDetail ? "line-clamp-2" : "truncate")}>{detail}</p>}
       </CardContent>
     </Card>
+  );
+  if (!onClick) return card;
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      aria-pressed={isSelected}
+      title="Show these games below"
+      className={cn("rounded-card text-left [&>div]:hover:border-border-strong", className)}
+    >
+      {card}
+    </button>
   );
 }
 
@@ -95,7 +114,7 @@ function StatusTag({ status }) {
   );
 }
 
-function FinishedCard({ event, game, hours }) {
+function ShelfCard({ event, game, hours, showStatus }) {
   const { openDetails } = useGameActions();
   const finishedOn = new Date(event.changedUtc);
   return (
@@ -110,6 +129,11 @@ function FinishedCard({ event, game, hours }) {
           <span className="absolute left-2 top-2 rounded-full bg-background/80 px-2 py-0.5 text-[11px] font-medium backdrop-blur-sm">
             {finishedOn.toLocaleDateString("en-GB", { day: "numeric", month: "short" })}
           </span>
+          {showStatus && (
+            <span className="absolute bottom-2 left-2 rounded-full bg-background/80 px-2 py-0.5 text-[11px] font-medium backdrop-blur-sm">
+              <StatusTag status={event.toStatus} />
+            </span>
+          )}
         </div>
         <div className="space-y-1 px-3 py-2">
           <p className="truncate text-sm font-medium group-hover:underline" title={event.name}>{event.name}</p>
@@ -128,34 +152,67 @@ function FinishedCard({ event, game, hours }) {
   );
 }
 
-function FinishedShelf({ year, finished, finishedHours }) {
+function SiftedShelf({ year, sifted, group, onGroupChange, gameHours }) {
   const [showAll, setShowAll] = useState(false);
+  const counts = useMemo(() => {
+    const byStatus = new Map(SIFTED_STATUSES.map((status) => [status, 0]));
+    sifted.forEach(({ event }) => byStatus.set(event.toStatus, byStatus.get(event.toStatus) + 1));
+    return byStatus;
+  }, [sifted]);
   const sorted = useMemo(
-    () => [...finished].sort((a, b) => Date.parse(b.event.changedUtc) - Date.parse(a.event.changedUtc)),
-    [finished]
+    () => sifted
+      .filter(({ event }) => group === "All" || event.toStatus === group)
+      .sort((a, b) => Date.parse(b.event.changedUtc) - Date.parse(a.event.changedUtc)),
+    [sifted, group]
   );
-  const shown = showAll ? sorted : sorted.slice(0, FINISHED_SHOWN);
+  const shown = showAll ? sorted : sorted.slice(0, SHELF_SHOWN);
+  const chips = [["All", "All", sifted.length], ...SIFTED_STATUSES.map((status) => [status, STATUS_META[status].label, counts.get(status)])];
+
   return (
     <div className="rounded-card border border-border bg-card p-4 lg:col-span-2">
-      <div className="mb-3 flex items-baseline justify-between gap-3">
-        <h3 className="text-sm font-medium text-muted-foreground">Finished in {year}</h3>
-        {finished.length > 0 && <span className="text-xs tabular-nums text-muted-foreground">Newest first</span>}
+      <div className="mb-3 flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
+        <h3 className="text-sm font-medium text-muted-foreground">Sifted in {year}</h3>
+        {sorted.length > 0 && <span className="text-xs tabular-nums text-muted-foreground">Newest first</span>}
       </div>
-      {finished.length ? (
+      <div className="mb-3 flex flex-wrap gap-1.5" role="group" aria-label="Show games by status">
+        {chips.map(([id, label, count]) => (
+          <button
+            key={id}
+            type="button"
+            aria-pressed={group === id}
+            disabled={count === 0 && id !== "All"}
+            onClick={() => {
+              onGroupChange(id);
+              setShowAll(false);
+            }}
+            className={cn(
+              "flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs transition-colors disabled:opacity-40",
+              group === id ? "border-foreground/60 bg-muted text-foreground" : "border-border-strong text-muted-foreground hover:text-foreground"
+            )}
+          >
+            {id !== "All" && <span className={cn("h-1.5 w-1.5 rounded-full", STATUS_META[id].dotClass)} aria-hidden="true" />}
+            {label}
+            <span className="tabular-nums">{count}</span>
+          </button>
+        ))}
+      </div>
+      {sorted.length ? (
         <>
           <ul className="grid grid-cols-2 gap-3 sm:grid-cols-3">
             {shown.map((item) => (
-              <FinishedCard key={item.event.appId} event={item.event} game={item.game} hours={finishedHours(item)} />
+              <ShelfCard key={item.event.appId} event={item.event} game={item.game} hours={gameHours(item)} showStatus={group === "All"} />
             ))}
           </ul>
-          {sorted.length > FINISHED_SHOWN && (
+          {sorted.length > SHELF_SHOWN && (
             <Button variant="ghost" size="sm" className="mt-3" onClick={() => setShowAll((value) => !value)}>
               {showAll ? "Show fewer" : `Show all ${sorted.length}`}
             </Button>
           )}
         </>
       ) : (
-        <p className="text-sm text-muted-foreground">Nothing marked Completed in {year} yet.</p>
+        <p className="text-sm text-muted-foreground">
+          {group === "All" ? `Nothing sifted in ${year} yet.` : `Nothing marked ${STATUS_META[group].label} in ${year} yet.`}
+        </p>
       )}
     </div>
   );
@@ -163,11 +220,22 @@ function FinishedShelf({ year, finished, finishedHours }) {
 
 function YearInReview({ year, years, onYearChange, events, monthly, games }) {
   const toast = useToast();
+  const [group, setGroup] = useState("All");
   const gamesById = useMemo(() => new Map(games.map((game) => [game.appId, game])), [games]);
 
   const review = useMemo(() => {
-    const finished = finishesIn(events, "Completed", year).map((event) => ({ event, game: gamesById.get(event.appId) }));
-    const abandoned = finishesIn(events, "Abandoned", year).map((event) => ({ event, game: gamesById.get(event.appId) }));
+    const sifted = siftedIn(events, year).map((event) => ({ event, game: gamesById.get(event.appId) }));
+    const countOf = (...statuses) => sifted.filter(({ event }) => statuses.includes(event.toStatus)).length;
+    const finished = sifted.filter(({ event }) => event.toStatus === "Completed");
+    const abandoned = sifted.filter(({ event }) => event.toStatus === "Abandoned");
+    // "5 finished · 2 abandoned · 2 problem", matching the Finished and Abandoned tiles.
+    const breakdown = [
+      [finished.length, "finished"],
+      [countOf("CompletedBefore"), "completed before"],
+      [abandoned.length, "abandoned"],
+      [countOf("Problem"), "problem"],
+      [countOf("NotApplicable"), "other"],
+    ].filter(([count]) => count > 0).map(([count, label]) => `${count} ${label}`).join(" · ");
     const months = monthly.filter((entry) => entry.month.startsWith(`${year}-`));
     const minutes = months.reduce((sum, entry) => sum + entry.minutes, 0);
     const perGame = new Map();
@@ -180,12 +248,13 @@ function YearInReview({ year, years, onYearChange, events, monthly, games }) {
     const bestRated = finished.filter(({ game }) => game?.reviewScore != null).sort((a, b) => b.game.reviewScore - a.game.reviewScore)[0];
     const longestAbandon = [...abandoned].sort((a, b) => finishedHours(b) - finishedHours(a))[0];
     const firstTrackedMonth = months.find((entry) => entry.minutes > 0)?.month;
-    return { finished, abandoned, minutes, mostPlayed, bestRated, longestAbandon, finishedHours, finishedTotal, firstTrackedMonth };
+    return { sifted, breakdown, finished, abandoned, minutes, mostPlayed, bestRated, longestAbandon, finishedHours, finishedTotal, firstTrackedMonth };
   }, [events, monthly, year, gamesById]);
 
   const copySummary = async () => {
     const lines = [
       `My ${year} in games (Sift)`,
+      `Sifted: ${review.sifted.length}${review.breakdown ? ` (${review.breakdown})` : ""}`,
       `Finished: ${review.finished.length}${review.finished.length ? ` (${review.finished.map(({ event }) => event.name).join(", ")})` : ""}`,
       `Abandoned: ${review.abandoned.length}`,
       review.finished.length > 0 && `Hours to finish them: ${Math.round(review.finishedTotal).toLocaleString()}`,
@@ -228,23 +297,45 @@ function YearInReview({ year, years, onYearChange, events, monthly, games }) {
         </div>
       </SectionTitle>
 
-      <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
+      <div className="grid grid-cols-2 gap-3 md:grid-cols-5">
+        <Tile
+          title="Sifted"
+          value={review.sifted.length}
+          detail={review.breakdown || `No decisions made in ${year} yet`}
+          wrapDetail
+          onClick={() => setGroup("All")}
+          isSelected={group === "All"}
+          className="col-span-2 md:col-span-1"
+        />
         <Tile
           title="Finished"
           value={review.finished.length}
           detail={review.finished.length ? `${Math.round(review.finishedTotal).toLocaleString()} hrs to finish them` : null}
+          onClick={() => setGroup("Completed")}
+          isSelected={group === "Completed"}
         />
-        <Tile title="Abandoned" value={review.abandoned.length} detail={review.longestAbandon ? `Most sunk: ${review.longestAbandon.event.name}` : null} />
+        <Tile
+          title="Abandoned"
+          value={review.abandoned.length}
+          detail={review.longestAbandon ? `Most sunk: ${review.longestAbandon.event.name}` : null}
+          onClick={() => setGroup("Abandoned")}
+          isSelected={group === "Abandoned"}
+        />
         <Tile
           title="Hours played"
           value={Math.round(review.minutes / 60).toLocaleString()}
           detail={review.mostPlayed[0] ? `Top: ${review.mostPlayed[0].name}` : "Counted from playtime gained between syncs"}
         />
-        <Tile title="Best-rated finish" value={review.bestRated ? `${Math.round(review.bestRated.game.reviewScore)}%` : "—"} detail={review.bestRated?.event.name} />
+        <Tile
+          title="Best-rated finish"
+          value={review.bestRated ? `${Math.round(review.bestRated.game.reviewScore)}%` : "—"}
+          detail={review.bestRated?.event.name}
+          className="col-span-2 md:col-span-1"
+        />
       </div>
 
       <div className="mt-4 grid gap-4 lg:grid-cols-3">
-        <FinishedShelf year={year} finished={review.finished} finishedHours={review.finishedHours} />
+        <SiftedShelf year={year} sifted={review.sifted} group={group} onGroupChange={setGroup} gameHours={review.finishedHours} />
         <div className="rounded-card border border-border bg-card p-4">
           <h3 className="mb-2 text-sm font-medium text-muted-foreground">Most played in {year}</h3>
           {review.mostPlayed.length ? (
@@ -412,7 +503,8 @@ function Timeline({ events }) {
 
 export function HistoryTab({ steamId, games }) {
   const statusSignature = useMemo(() => games.map((game) => `${game.appId}:${game.status}`).join(","), [games]);
-  const { events, monthly, error } = useHistoryData(steamId, statusSignature);
+  const [reloadKey, setReloadKey] = useState(0);
+  const { events, monthly, error } = useHistoryData(steamId, statusSignature, reloadKey);
   const thisYear = new Date().getFullYear();
   const [year, setYear] = useState(thisYear);
 

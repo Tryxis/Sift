@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { ArrowDown, ArrowUp, Eye, EyeOff, ExternalLink, Globe, ListPlus, ListX, Lock, ThumbsUp, Trophy } from "lucide-react";
+import { ArrowDown, ArrowUp, Eye, EyeOff, ExternalLink, Globe, ListPlus, ListX, Lock, Share2, ThumbsUp, Trophy } from "lucide-react";
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { api } from "@/lib/api";
@@ -8,11 +8,15 @@ import { progressPercent, reviewDescription, reviewTone, steamLinks } from "@/li
 import { addToQueuePatch, moveInQueue, queueOf } from "@/lib/queue";
 import { useCachedRequest } from "@/lib/remoteCache";
 import { useGameStatusChange } from "@/hooks/useGameStatusChange";
+import { displayName, useFavourites } from "@/hooks/useFavourites";
+import { getStatusMeta } from "@/lib/status";
 import { cn, safeExternalUrl } from "@/lib/utils";
 import { GameCover } from "./GameCover";
 import { FinishedHoursInput } from "./FinishedHoursInput";
+import { ProfileAvatar } from "./FriendsList";
 import { PlayedBeforeToggle } from "./PlayedBeforeToggle";
 import { ProgressBar } from "./ProgressBar";
+import { ShareDialog } from "./ShareDialog";
 import { StatusPicker } from "./StatusPicker";
 import { useGameActions } from "./GameActions";
 
@@ -132,6 +136,41 @@ function QueueControls({ game, games, onUpdateGames, readOnly }) {
   );
 }
 
+/** Public notes your favourites have left on this game. Hidden entirely when there are none. */
+function FriendsNotes({ steamId, appId }) {
+  const { favourites, isLoaded, version, find } = useFavourites(steamId);
+  // Keyed on the favourites version so starring or renaming someone shows up straight away.
+  const key = isLoaded && favourites.length ? `favourite-notes:${steamId}:${appId}:${version}` : null;
+  const { data } = useCachedRequest(key, () => api.getFavouriteNotes(steamId, appId));
+  if (!key || !data?.length) return null;
+
+  return (
+    <Section title="Friends' notes">
+      <ul className="space-y-3">
+        {data.map((note) => {
+          const status = getStatusMeta(note.status);
+          return (
+            <li key={note.steamId} className="flex gap-3">
+              <ProfileAvatar src={note.avatarUrl} className="h-8 w-8" />
+              <div className="min-w-0 flex-1">
+                <p className="flex flex-wrap items-center gap-x-2 text-xs text-muted-foreground">
+                  <span className="font-medium text-foreground">{displayName(note, find(note.steamId))}</span>
+                  <span className="flex items-center gap-1">
+                    <span className={cn("h-1.5 w-1.5 rounded-full", status.dotClass)} aria-hidden="true" />
+                    {status.label}
+                  </span>
+                  <span className="tabular-nums">{formatHours(note.playtimeForeverMinutes)}</span>
+                </p>
+                <p className="mt-1 whitespace-pre-wrap break-words rounded-well border border-border px-3 py-2 text-sm">{note.notes}</p>
+              </div>
+            </li>
+          );
+        })}
+      </ul>
+    </Section>
+  );
+}
+
 function StoreDetails({ appId }) {
   const { data, error, isLoading } = useCachedRequest(`details:${appId}`, () => api.getAppDetails(appId));
 
@@ -186,8 +225,9 @@ function Achievements({ steamId, appId }) {
 }
 
 function DetailsBody({ game }) {
-  const { steamId, games, updateGame, updateGames, readOnly } = useGameActions();
+  const { steamId, profileName, games, updateGame, updateGames, readOnly } = useGameActions();
   const [container, setContainer] = useState(null);
+  const [isSharing, setIsSharing] = useState(false);
   const { handleStatusChange, statusChangePrompt } = useGameStatusChange(game, updateGame, { container });
   const progress = progressPercent(game);
   const description = reviewDescription(game);
@@ -210,6 +250,10 @@ function DetailsBody({ game }) {
             </DialogDescription>
           </div>
           <div className="flex flex-wrap gap-2">
+            <Button size="sm" onClick={() => setIsSharing(true)}>
+              <Share2 className="h-3.5 w-3.5" aria-hidden="true" />
+              Share
+            </Button>
             {steamLinks(game).map((link) => (
               <Button key={link.label} variant="outline" size="sm" asChild>
                 <a href={link.href} target="_blank" rel="noreferrer">
@@ -263,6 +307,8 @@ function DetailsBody({ game }) {
           {statusChangePrompt}
         </Section>
 
+        {!readOnly && <FriendsNotes steamId={steamId} appId={game.appId} />}
+
         <Section title="Playtime">
           <dl className="grid grid-cols-2 gap-3 sm:grid-cols-4">
             <Fact label="Total">{formatHours(game.playtimeForeverMinutes)}</Fact>
@@ -305,6 +351,7 @@ function DetailsBody({ game }) {
           <StoreDetails appId={game.appId} />
         </Section>
       </div>
+      <ShareDialog game={game} profileName={profileName} open={isSharing} onOpenChange={setIsSharing} />
     </div>
   );
 }

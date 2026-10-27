@@ -8,6 +8,7 @@ import { createContext, useContext } from "react";
  */
 const GameActionsContext = createContext({
   steamId: null,
+  profileName: null,
   readOnly: false,
   games: [],
   newAppIds: new Set(),

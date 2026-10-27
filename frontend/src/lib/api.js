@@ -42,6 +42,7 @@ export function setGuestMode(on) {
 const PROFILE_CALLS = new Set([
   "getLibrary", "updateBacklog", "getSavedViews", "createSavedView", "updateSavedView", "selectSavedView",
   "deleteSavedView", "getAchievements", "getWishlist", "getHistory", "getMonthlyPlaytime",
+  "getFavourites", "saveFavourite", "deleteFavourite", "getFavouriteNotes",
 ]);
 
 function backendFor(name, args) {

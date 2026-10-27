@@ -82,5 +82,18 @@ export const httpApi = {
 
   getMonthlyPlaytime: (steamId, months = 24) => request(`${profilePath(steamId)}/playtime/monthly?months=${months}`),
 
+  getFavourites: (steamId) => request(`${profilePath(steamId)}/favourites`),
+
+  saveFavourite: (steamId, favouriteSteamId, alias) =>
+    request(`${profilePath(steamId)}/favourites/${encodeURIComponent(favouriteSteamId)}`, {
+      method: "PUT",
+      body: JSON.stringify({ alias }),
+    }),
+
+  deleteFavourite: (steamId, favouriteSteamId) =>
+    request(`${profilePath(steamId)}/favourites/${encodeURIComponent(favouriteSteamId)}`, { method: "DELETE" }),
+
+  getFavouriteNotes: (steamId, appId) => request(`${profilePath(steamId)}/favourites/notes/${appId}`),
+
   getTimeToBeat: (appId, name) => request(`/api/apps/${appId}/time-to-beat?name=${encodeURIComponent(name)}`),
 };

@@ -1,3 +1,4 @@
+import { useEffect } from "react";
 import { WifiOff } from "lucide-react";
 import { AppHeader } from "@/components/AppHeader";
 import { ErrorBanner } from "@/components/ErrorBanner";
@@ -9,6 +10,7 @@ import { SiteFooter } from "@/components/SiteFooter";
 import { ToastProvider } from "@/components/ui/toast";
 import { SessionContext, useSession } from "@/hooks/useSession";
 import { useLibrary } from "@/hooks/useLibrary";
+import { recordRecentProfile } from "@/lib/recentProfiles";
 
 function Sift({ session }) {
   const { library, newAppIds, isSyncing, isOpening, isOffline, error, dismissError, lookUp, resync, goHome, updateGame, updateGames } =
@@ -17,6 +19,12 @@ function Sift({ session }) {
   // Only the owner changes a library; everyone else (and a guest looking beyond the demo) sees it read-only.
   // The server enforces the same rule.
   const readOnly = Boolean(library) && library.profile.steamId !== session.steamId;
+  const viewedProfile = library?.profile;
+
+  // Someone else's library counts as a recent search, however it was opened.
+  useEffect(() => {
+    if (viewedProfile) recordRecentProfile(session.steamId, viewedProfile);
+  }, [viewedProfile?.steamId, session.steamId]); // eslint-disable-line react-hooks/exhaustive-deps
 
   return (
     <>
@@ -39,6 +47,7 @@ function Sift({ session }) {
           newAppIds={newAppIds}
           isSyncing={isSyncing}
           readOnly={readOnly}
+          onOpenProfile={lookUp}
           onGoHome={goHome}
           homeLabel={session.isGuest ? "Back to demo" : "My library"}
           onResync={resync}

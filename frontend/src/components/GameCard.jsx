@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Clock, Info, RotateCcw, ThumbsUp } from "lucide-react";
+import { Clock, Maximize2, RotateCcw, ThumbsUp } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { GameCover } from "./GameCover";
 import { StatusPicker } from "./StatusPicker";
@@ -177,15 +177,6 @@ export function GameCard({ game, onUpdateGame, isNew = false, queuePosition = nu
                 <button
                   type="button"
                   className="flex h-8 w-8 items-center justify-center rounded-full text-muted-foreground hover:bg-muted hover:text-foreground"
-                  onClick={() => openDetails(game.appId)}
-                  aria-label={`All details for ${game.name}`}
-                  title="All details"
-                >
-                  <Info className="h-4 w-4" aria-hidden="true" />
-                </button>
-                <button
-                  type="button"
-                  className="flex h-8 w-8 items-center justify-center rounded-full text-muted-foreground hover:bg-muted hover:text-foreground"
                   onClick={() => setIsFlipped(false)}
                   aria-label={`Show cover for ${game.name}`}
                   title="Show cover"
@@ -214,6 +205,15 @@ export function GameCard({ game, onUpdateGame, isNew = false, queuePosition = nu
             <Field label="Finished hours">
               <FinishedHoursInput game={game} onUpdateGame={onUpdateGame} showUnit />
             </Field>
+            <button
+              type="button"
+              onClick={() => openDetails(game.appId)}
+              aria-label={`See more about ${game.name}`}
+              className="flex h-9 w-full shrink-0 items-center justify-center gap-1.5 rounded-full border border-border-strong text-[13px] font-medium transition-colors hover:border-muted-foreground/60 hover:bg-muted"
+            >
+              See more
+              <Maximize2 className="h-3.5 w-3.5" aria-hidden="true" />
+            </button>
             <div className="mt-auto hidden items-center gap-3 border-t border-border pt-2 text-xs text-muted-foreground @[15rem]:flex">
               <Playtime game={game} />
               <ReviewScore game={game} />

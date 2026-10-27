@@ -1,11 +1,15 @@
 import { useEffect, useMemo, useState } from "react";
-import { ExternalLink, Users } from "lucide-react";
+import { ExternalLink } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { displayName, useFavourites } from "@/hooks/useFavourites";
+import { useSessionContext } from "@/hooks/useSession";
 import { api } from "@/lib/api";
 import { formatHours } from "@/lib/format";
+import { recordRecentProfile } from "@/lib/recentProfiles";
 import { cachedRequest } from "@/lib/remoteCache";
 import { getStatusMeta, isCountable, isFinished } from "@/lib/status";
 import { cn } from "@/lib/utils";
+import { FavouriteButton, FriendsList, ProfileAvatar } from "./FriendsList";
 import { ProfileSearch } from "./ProfileSearch";
 import { useGameActions } from "./GameActions";
 
@@ -80,7 +84,10 @@ function HoursPair({ mine, theirs, max }) {
   );
 }
 
-export function CompareTab({ profile, games }) {
+export function CompareTab({ profile, games, onOpenProfile }) {
+  // Favourites and recents belong to whoever is signed in, whichever library they're viewing.
+  const ownerSteamId = useSessionContext()?.steamId;
+  const { find } = useFavourites(ownerSteamId);
   const [identifier, setIdentifier] = useState(() => readLastCompared(profile.steamId));
   const [state, setState] = useState({ friend: null, error: null, isLoading: false });
 
@@ -93,6 +100,7 @@ export function CompareTab({ profile, games }) {
       .then((friend) => {
         if (cancelled) return;
         setState({ friend, error: null, isLoading: false });
+        recordRecentProfile(ownerSteamId, friend.profile);
         try {
           localStorage.setItem(LAST_COMPARED_KEY(profile.steamId), identifier);
         } catch {
@@ -103,7 +111,7 @@ export function CompareTab({ profile, games }) {
     return () => {
       cancelled = true;
     };
-  }, [identifier, profile.steamId]);
+  }, [identifier, profile.steamId, ownerSteamId]);
 
   const comparison = useMemo(() => {
     const friend = state.friend;
@@ -144,6 +152,13 @@ export function CompareTab({ profile, games }) {
         <ProfileSearch onSubmit={setIdentifier} isBusy={state.isLoading} className="mt-3 max-w-lg" placeholder="Friend's profile link, custom URL or SteamID64" buttonLabel="Compare" />
       </div>
 
+      <FriendsList
+        ownerSteamId={ownerSteamId}
+        activeSteamId={state.friend?.profile.steamId}
+        onCompare={setIdentifier}
+        onOpen={onOpenProfile}
+      />
+
       {state.isLoading && <p className="text-sm text-muted-foreground">Fetching their library from Steam…</p>}
       {state.error && (
         <p className="rounded-card border border-status-abandoned/40 bg-status-abandoned/10 p-4 text-sm">
@@ -158,19 +173,15 @@ export function CompareTab({ profile, games }) {
       {comparison && !isSelf && (
         <>
           <div className="flex items-center gap-3">
-            {comparison.friend.profile.avatarUrl ? (
-              <img src={comparison.friend.profile.avatarUrl} alt="" className="h-10 w-10 shrink-0 rounded-full border border-border-strong" />
-            ) : (
-              <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-border-strong bg-muted">
-                <Users className="h-4 w-4 text-muted-foreground" aria-hidden="true" />
-              </span>
-            )}
-            <div className="min-w-0">
-              <p className="truncate font-medium">{comparison.friend.profile.personaName}</p>
+            <ProfileAvatar src={comparison.friend.profile.avatarUrl} className="h-10 w-10" />
+            <div className="min-w-0 flex-1">
+              <p className="truncate font-medium">{displayName(comparison.friend.profile, find(comparison.friend.profile.steamId))}</p>
               <p className="text-xs text-muted-foreground">
+                {find(comparison.friend.profile.steamId)?.alias ? `${comparison.friend.profile.personaName} · ` : ""}
                 {comparison.friend.profile.isLibraryVisible ? `${comparison.friend.games.filter(isCountable).length.toLocaleString()} games` : "Game details are private"}
               </p>
             </div>
+            <FavouriteButton ownerSteamId={ownerSteamId} profile={comparison.friend.profile} size="sm" />
           </div>
 
           <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
